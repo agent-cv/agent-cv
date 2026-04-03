@@ -127,6 +127,4 @@ Built with [Bun](https://bun.sh), [Ink](https://github.com/vadimdemedes/ink) (Re
 
 ## License
 
-[Agent CV Source Available License](LICENSE)
-
-Free to use, modify, and fork. You can generate CVs for yourself, your team, or clients. You cannot operate a competing hosted CV service. No expiration.
+[Proprietary](LICENSE) — Source available for transparency. Use the official CLI freely. Code cannot be forked, copied, or reused in other projects.
