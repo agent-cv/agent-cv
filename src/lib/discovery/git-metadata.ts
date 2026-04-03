@@ -83,35 +83,9 @@ export async function discoverRepoLocalEmail(
 }
 
 /**
- * Bot/automated email patterns to filter out from the picker.
- * These are never real users.
- */
-const BOT_EMAIL_PATTERNS = [
-  /noreply/i,
-  /\bbot\b/i,
-  /dependabot/i,
-  /renovate/i,
-  /greenkeeper/i,
-  /snyk/i,
-  /github-actions/i,
-  /\[bot\]/i,
-  /mergify/i,
-  /semantic-release/i,
-  /users\.noreply\.github\.com$/i,
-];
-
-function isBotEmail(email: string): boolean {
-  return BOT_EMAIL_PATTERNS.some((p) => p.test(email));
-}
-
-/**
- * Collect unique email addresses found across scanned repos.
- * Filters out bots and automated accounts.
+ * Collect ALL unique email addresses found across scanned repos.
  * Returns a map of email → number of repos it appears in.
- *
- * Only collects emails that appear in the local git config of each repo,
- * NOT from all committers in the repo. This limits the list to emails
- * that were configured on THIS machine.
+ * No filtering. User picks their own from the list via search.
  */
 export async function collectAllRepoEmails(
   dirs: string[]
@@ -124,15 +98,12 @@ export async function collectAllRepoEmails(
       const isRepo = await git.checkIsRepo();
       if (!isRepo) continue;
 
-      // Only get the email configured in this repo (local or inherited global)
-      // This is the email the user USED on this machine, not all committers
-      try {
-        const configEmail = (await git.raw(["config", "user.email"])).trim().toLowerCase();
-        if (configEmail && !isBotEmail(configEmail)) {
-          emailCounts.set(configEmail, (emailCounts.get(configEmail) || 0) + 1);
-        }
-      } catch {
-        // no email configured for this repo
+      const shortlog = await git.raw(["shortlog", "-sne", "--no-merges", "HEAD"]);
+      for (const line of shortlog.split("\n")) {
+        const match = line.match(/<(.+?)>/);
+        if (!match?.[1]) continue;
+        const email = match[1].toLowerCase();
+        emailCounts.set(email, (emailCounts.get(email) || 0) + 1);
       }
     } catch {
       // skip
