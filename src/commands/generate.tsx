@@ -16,7 +16,7 @@ import { readConfig, writeConfig } from "../lib/config.ts";
 import {
   collectUserEmails,
   collectAllRepoEmails,
-  recountAuthorCommits,
+  recountAuthorCommitsBatch,
 } from "../lib/discovery/git-metadata.ts";
 import type { Project, Inventory } from "../lib/types.ts";
 
@@ -161,15 +161,16 @@ export default function Generate({
       try {
         const projects = [...allProjects];
 
-        // Recount authorCommitCount for each git project
-        for (const project of projects) {
-          if (!project.hasGit || confirmedEmails.length === 0) continue;
-          const { authorCommits, matchedEmail } = await recountAuthorCommits(
-            project.path,
-            confirmedEmails
-          );
-          project.authorCommitCount = authorCommits;
-          project.authorEmail = matchedEmail;
+        // Recount authorCommitCount in parallel batches
+        if (confirmedEmails.length > 0) {
+          const counts = await recountAuthorCommitsBatch(projects, confirmedEmails);
+          for (const project of projects) {
+            const result = counts.get(project.path);
+            if (result) {
+              project.authorCommitCount = result.authorCommits;
+              project.authorEmail = result.matchedEmail;
+            }
+          }
         }
 
         setAllProjects(projects);

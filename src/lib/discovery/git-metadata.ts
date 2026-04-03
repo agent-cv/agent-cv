@@ -87,26 +87,36 @@ export async function discoverRepoLocalEmail(
  * Returns a map of email → number of repos it appears in.
  * No filtering. User picks their own from the list via search.
  */
+const PARALLEL_BATCH = 10;
+
 export async function collectAllRepoEmails(
   dirs: string[]
 ): Promise<Map<string, number>> {
   const emailCounts = new Map<string, number>();
 
-  for (const dir of dirs) {
-    try {
-      const git = simpleGit(dir);
-      const isRepo = await git.checkIsRepo();
-      if (!isRepo) continue;
-
-      const shortlog = await git.raw(["shortlog", "-sne", "--no-merges", "HEAD"]);
-      for (const line of shortlog.split("\n")) {
-        const match = line.match(/<(.+?)>/);
-        if (!match?.[1]) continue;
-        const email = match[1].toLowerCase();
+  // Process repos in parallel batches of 10
+  for (let i = 0; i < dirs.length; i += PARALLEL_BATCH) {
+    const batch = dirs.slice(i, i + PARALLEL_BATCH);
+    const results = await Promise.all(
+      batch.map(async (dir) => {
+        try {
+          const git = simpleGit(dir);
+          const shortlog = await git.raw(["shortlog", "-sne", "--no-merges", "HEAD"]);
+          const emails: string[] = [];
+          for (const line of shortlog.split("\n")) {
+            const match = line.match(/<(.+?)>/);
+            if (match?.[1]) emails.push(match[1].toLowerCase());
+          }
+          return emails;
+        } catch {
+          return [];
+        }
+      })
+    );
+    for (const emails of results) {
+      for (const email of emails) {
         emailCounts.set(email, (emailCounts.get(email) || 0) + 1);
       }
-    } catch {
-      // skip
     }
   }
 
@@ -114,31 +124,52 @@ export async function collectAllRepoEmails(
 }
 
 /**
- * Recount author commits for a project using a new set of emails.
- * Fast: only runs git rev-list --count, no filesystem scan.
+ * Recount author commits for a single project.
  */
-export async function recountAuthorCommits(
+async function recountOne(
   dir: string,
   emails: string[]
 ): Promise<{ authorCommits: number; matchedEmail: string }> {
   let authorCommits = 0;
   let matchedEmail = "";
-
   try {
     const git = simpleGit(dir);
     for (const email of emails) {
       try {
-        const count = await git.raw([
-          "rev-list", "--count", "--author", email, "HEAD",
-        ]);
+        const count = await git.raw(["rev-list", "--count", "--author", email, "HEAD"]);
         const n = parseInt(count.trim(), 10) || 0;
         authorCommits += n;
         if (n > 0 && !matchedEmail) matchedEmail = email;
       } catch { /* ignore */ }
     }
   } catch { /* not a git repo */ }
-
   return { authorCommits, matchedEmail };
+}
+
+/**
+ * Recount author commits for many projects in parallel batches.
+ */
+export async function recountAuthorCommitsBatch(
+  projects: Array<{ path: string; hasGit: boolean }>,
+  emails: string[]
+): Promise<Map<string, { authorCommits: number; matchedEmail: string }>> {
+  const results = new Map<string, { authorCommits: number; matchedEmail: string }>();
+
+  const gitProjects = projects.filter((p) => p.hasGit);
+  for (let i = 0; i < gitProjects.length; i += PARALLEL_BATCH) {
+    const batch = gitProjects.slice(i, i + PARALLEL_BATCH);
+    const batchResults = await Promise.all(
+      batch.map(async (p) => ({
+        path: p.path,
+        result: await recountOne(p.path, emails),
+      }))
+    );
+    for (const { path, result } of batchResults) {
+      results.set(path, result);
+    }
+  }
+
+  return results;
 }
 
 /**
