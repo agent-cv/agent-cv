@@ -19,8 +19,8 @@ export const args = z.tuple([
 export const options = z.object({
   output: z.string().optional().describe("Output file path (default: stdout)"),
   agent: z.string().default("claude").describe("Agent to use for analysis"),
-  "no-cache": z.boolean().default(false).describe("Force fresh analysis, ignore cache"),
-  "dry-run": z.boolean().default(false).describe("Show what would be sent to the LLM without sending"),
+  noCache: z.boolean().default(false).describe("Force fresh analysis, ignore cache"),
+  dryRun: z.boolean().default(false).describe("Show what would be sent to the LLM without sending"),
 });
 
 type Props = {
@@ -39,7 +39,7 @@ type Phase =
 
 export default function Generate({
   args: [directory],
-  options: { output, agent, "no-cache": noCache, "dry-run": dryRun },
+  options: { output, agent, noCache, dryRun },
 }: Props) {
   const [phase, setPhase] = useState<Phase>("scanning");
   const [projects, setProjects] = useState<Project[]>([]);
