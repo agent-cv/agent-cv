@@ -115,6 +115,7 @@ analyze:
 |-------|--------------|
 | Claude Code | [Install Claude Code](https://claude.ai/claude-code). Best results (reads files directly). |
 | Codex CLI | `npm install -g @openai/codex` |
+| Cursor Agent | [Install Cursor](https://cursor.com). Uses `agent --trust -p` headless mode. |
 | OpenRouter | `export OPENROUTER_API_KEY=...` (one key, all models) |
 | Anthropic | `export ANTHROPIC_API_KEY=...` |
 | OpenAI | `export OPENAI_API_KEY=...` |

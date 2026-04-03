@@ -1,5 +1,6 @@
 import { ClaudeAdapter } from "./claude-adapter.ts";
 import { CodexAdapter } from "./codex-adapter.ts";
+import { CursorAdapter } from "./cursor-adapter.ts";
 import { APIAdapter } from "./api-adapter.ts";
 import type { AgentAdapter } from "../types.ts";
 
@@ -17,7 +18,7 @@ export async function resolveAdapter(
     const adapter = getAdapterByName(agentName);
     if (!adapter) {
       throw new Error(
-        `Unknown agent "${agentName}". Available: claude, codex, api`
+        `Unknown agent "${agentName}". Available: claude, codex, cursor, api`
       );
     }
     const available = await adapter.isAvailable();
@@ -34,6 +35,7 @@ export async function resolveAdapter(
   const candidates: Array<{ name: string; adapter: AgentAdapter }> = [
     { name: "claude", adapter: new ClaudeAdapter() },
     { name: "codex", adapter: new CodexAdapter() },
+    { name: "cursor", adapter: new CursorAdapter() },
     { name: "api", adapter: new APIAdapter() },
   ];
 
@@ -56,6 +58,7 @@ function getAdapterByName(name: string): AgentAdapter | null {
   switch (name) {
     case "claude": return new ClaudeAdapter();
     case "codex": return new CodexAdapter();
+    case "cursor": return new CursorAdapter();
     case "api": return new APIAdapter();
     default: return null;
   }
@@ -67,6 +70,8 @@ function getSetupInstructions(name: string): string {
       return "Install Claude Code: https://claude.ai/claude-code";
     case "codex":
       return "Install Codex: npm install -g @openai/codex";
+    case "cursor":
+      return "Install Cursor: https://cursor.com (agent CLI included)";
     case "api":
       return "Set an API key: export OPENROUTER_API_KEY=... (or ANTHROPIC_API_KEY, OPENAI_API_KEY)";
     default:
