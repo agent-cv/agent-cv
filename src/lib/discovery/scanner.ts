@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import type { Project } from "../types.ts";
 import {
   extractGitMetadata,
-  collectUserEmails,
-  discoverRepoEmails,
+  collectUserIdentity,
+  discoverRepoIdentity,
 } from "./git-metadata.ts";
 import { scanForSecrets } from "./privacy-auditor.ts";
 
@@ -86,10 +86,13 @@ export async function scanDirectory(
   const errors: Array<{ path: string; error: string }> = [];
   const foundProjectPaths = new Set<string>();
 
-  // Collect all known user emails once at scan start
-  const userEmails = await collectUserEmails(emails);
-  if (verbose && userEmails.size > 0) {
-    console.error(`  Git identities: ${[...userEmails].join(", ")}`);
+  // Collect all known user identities once at scan start
+  const identity = await collectUserIdentity(emails);
+  if (verbose && identity.emails.size > 0) {
+    console.error(`  Git emails: ${[...identity.emails].join(", ")}`);
+    if (identity.names.size > 0) {
+      console.error(`  Git names: ${[...identity.names].join(", ")}`);
+    }
   }
 
   async function walk(dir: string, depth: number): Promise<void> {
@@ -139,10 +142,9 @@ export async function scanDirectory(
         foundProjectPaths.add(dir);
 
         try {
-          // Discover repo-local emails and add to known set
+          // Discover repo identity (may add new emails via name matching)
           if (hasGit) {
-            const repoEmails = await discoverRepoEmails(dir, userEmails);
-            for (const e of repoEmails) userEmails.add(e);
+            await discoverRepoIdentity(dir, identity);
           }
 
           const project = await buildProject(
@@ -150,7 +152,7 @@ export async function scanDirectory(
             primaryMarker,
             detectedMarkers,
             hasGit,
-            userEmails
+            identity
           );
           projects.push(project);
           if (verbose) {
@@ -193,7 +195,7 @@ async function buildProject(
   primaryMarker: (typeof PROJECT_MARKERS)[0] | undefined,
   detectedMarkers: string[],
   hasGit: boolean,
-  userEmails: Set<string>
+  identity: { emails: Set<string>; names: Set<string> }
 ): Promise<Project> {
   const name = basename(dir);
   const id = createHash("sha256").update(dir).digest("hex").slice(0, 16);
@@ -235,7 +237,7 @@ async function buildProject(
   }
 
   // Git metadata (dates, commits)
-  const gitMeta = hasGit ? await extractGitMetadata(dir, userEmails) : null;
+  const gitMeta = hasGit ? await extractGitMetadata(dir, identity) : null;
 
   // File timestamps fallback
   let dateRange = {
