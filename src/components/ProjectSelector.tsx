@@ -159,6 +159,9 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         <Text dimColor>
           [Space] toggle  [Enter] expand/collapse group  [s] submit  [a] all  [q] quit
         </Text>
+        <Text dimColor>
+          <Text color="yellow">!</Text> = secrets detected (auto-excluded from AI analysis)
+        </Text>
       </Box>
 
       {visible.map((row, i) => {
