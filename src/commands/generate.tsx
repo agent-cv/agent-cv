@@ -30,6 +30,7 @@ export const options = z.object({
   dryRun: z.boolean().default(false).describe("Show what would be sent to the LLM without sending"),
   all: z.boolean().default(false).describe("Skip interactive selection, analyze all projects"),
   email: z.string().optional().describe("Email(s) to filter by, for generating someone else's CV (comma-separated)"),
+  resetEmails: z.boolean().default(false).describe("Re-select your email addresses"),
 });
 
 type Props = {
@@ -50,7 +51,7 @@ type Phase =
 
 export default function Generate({
   args: [directory],
-  options: { output, agent, noCache, dryRun, all: selectAll, email },
+  options: { output, agent, noCache, dryRun, all: selectAll, email, resetEmails },
 }: Props) {
   const [phase, setPhase] = useState<Phase>("scanning");
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -78,9 +79,9 @@ export default function Generate({
           return;
         }
 
-        // Check saved config
+        // Check saved config (unless --reset-emails)
         const config = await readConfig();
-        if (config.emailsConfirmed && config.emails.length > 0) {
+        if (!resetEmails && config.emailsConfirmed && config.emails.length > 0) {
           setConfirmedEmails(config.emails);
           setPhase("rescanning");
           return;

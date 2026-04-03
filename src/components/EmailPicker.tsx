@@ -93,6 +93,11 @@ export function EmailPicker({ emailCounts, preSelected, onSubmit }: Props) {
         <Text dimColor>
           [Space] toggle  [Enter] confirm  [q] quit
         </Text>
+        <Text color="yellow">
+          TIP: Select ALL emails you've ever used for git commits,
+          including work, personal, and old addresses.
+          Missed one? Run with --reset-emails to re-select later.
+        </Text>
       </Box>
 
       {visible.map(({ email, count }, i) => {
