@@ -64,6 +64,10 @@ export interface ScanOptions {
   verbose?: boolean;
   /** Extra email addresses to recognize as "mine" (work, old, etc.) */
   emails?: string[];
+  /** Called when a new project is found during scan */
+  onProjectFound?: (project: Project, total: number) => void;
+  /** Called when entering a new directory */
+  onDirectoryEnter?: (dir: string) => void;
 }
 
 export interface ScanResult {
@@ -80,7 +84,7 @@ export async function scanDirectory(
   rootPath: string,
   options: ScanOptions = {}
 ): Promise<ScanResult> {
-  const { maxDepth = 5, verbose = false, emails = [] } = options;
+  const { maxDepth = 5, verbose = false, emails = [], onProjectFound, onDirectoryEnter } = options;
   const absRoot = resolve(rootPath);
   const projects: Project[] = [];
   const errors: Array<{ path: string; error: string }> = [];
@@ -94,6 +98,8 @@ export async function scanDirectory(
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > maxDepth) return;
+
+    onDirectoryEnter?.(dir);
 
     let entries;
     try {
@@ -153,6 +159,7 @@ export async function scanDirectory(
             userEmails
           );
           projects.push(project);
+          onProjectFound?.(project, projects.length);
           if (verbose) {
             console.error(`  Found: ${project.displayName} (${project.type})`);
           }

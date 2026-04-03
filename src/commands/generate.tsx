@@ -62,6 +62,11 @@ export default function Generate({
   const [markdown, setMarkdown] = useState("");
   const [error, setError] = useState("");
 
+  // Scan progress state
+  const [scanCount, setScanCount] = useState(0);
+  const [scanDir, setScanDir] = useState("");
+  const [lastFound, setLastFound] = useState("");
+
   // Email state
   const [emailCounts, setEmailCounts] = useState<Map<string, number>>(new Map());
   const [gitConfigEmails, setGitConfigEmails] = useState<Set<string>>(new Set());
@@ -72,7 +77,19 @@ export default function Generate({
     async function scan() {
       try {
         // Scan with empty emails first (just collect metadata)
-        const scanResult = await scanDirectory(directory, { verbose: false, emails: [] });
+        const scanResult = await scanDirectory(directory, {
+          verbose: false,
+          emails: [],
+          onProjectFound: (project, total) => {
+            setScanCount(total);
+            setLastFound(project.displayName);
+          },
+          onDirectoryEnter: (dir) => {
+            // Show relative path from scan root
+            const rel = dir.replace(directory, "").replace(/^\//, "") || ".";
+            setScanDir(rel);
+          },
+        });
 
         if (scanResult.projects.length === 0) {
           setError(`No projects found in ${directory}`);
@@ -275,7 +292,24 @@ export default function Generate({
   }
 
   if (phase === "scanning") {
-    return <Text color="yellow">Scanning {directory} for projects...</Text>;
+    return (
+      <Box flexDirection="column">
+        <Text color="yellow">
+          Scanning {directory}...
+        </Text>
+        {scanCount > 0 && (
+          <Text color="green">
+            Found {scanCount} project{scanCount !== 1 ? "s" : ""}
+            {lastFound ? ` — ${lastFound}` : ""}
+          </Text>
+        )}
+        {scanDir && (
+          <Text dimColor>
+            {scanDir}
+          </Text>
+        )}
+      </Box>
+    );
   }
 
   if (phase === "picking-emails") {
