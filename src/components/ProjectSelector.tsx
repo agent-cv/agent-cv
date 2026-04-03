@@ -164,7 +164,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           [Space] toggle  [Enter] expand/collapse group  [s] submit  [a] all  [q] quit
         </Text>
         <Text dimColor>
-          <Text color="green">★</Text> = your commits (42/100)  <Text color="yellow">!</Text> = secrets excluded  <Text color="gray">gray</Text> = no your commits
+          <Text color="green">★</Text> = your commits  <Text color="yellow">!</Text> = secrets excluded  <Text color="gray">gray</Text> = not yours
         </Text>
       </Box>
 
@@ -176,7 +176,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           const isCollapsed = collapsed.has(row.path);
           const arrow = isCollapsed ? "▸" : "▾";
           const label = row.path === "." ? "(root)" : row.path + "/";
-          const countLabel = `[${row.selectedCount}/${row.count}]`;
+          const countLabel = `selected ${row.selectedCount} of ${row.count}`;
 
           return (
             <Box key={`g-${row.path}`} gap={1}>
@@ -227,8 +227,11 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
             </Text>
             {hasMyCommits && (
               <Text color="green">
-                ★ {p.authorCommitCount}/{p.commitCount}
+                ★ {p.authorCommitCount} my / {p.commitCount} total
               </Text>
+            )}
+            {!p.hasGit && (
+              <Text dimColor>no git</Text>
             )}
             <Text dimColor>
               {p.language} {dateStr}
