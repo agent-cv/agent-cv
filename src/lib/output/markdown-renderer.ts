@@ -1,7 +1,10 @@
+import { relative, dirname } from "node:path";
 import type { Inventory, OutputRenderer, Project } from "../types.ts";
 
 /**
  * Render inventory as a markdown CV.
+ * Groups projects by year, shows relative path for duplicates,
+ * pluralizes correctly, skips junk project names.
  */
 export class MarkdownRenderer implements OutputRenderer {
   name = "markdown";
@@ -15,6 +18,27 @@ export class MarkdownRenderer implements OutputRenderer {
       return "# Technical CV\n\n*No projects selected.*\n";
     }
 
+    // Detect duplicate display names to disambiguate with path
+    const nameCounts = new Map<string, number>();
+    for (const p of selected) {
+      const name = p.displayName;
+      nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+    }
+
+    // Find scan root (common prefix of all paths)
+    const scanRoot = findCommonPrefix(selected.map((p) => p.path));
+
+    // Group by year
+    const byYear = new Map<string, Project[]>();
+    for (const p of selected) {
+      const year = getYear(p);
+      if (!byYear.has(year)) byYear.set(year, []);
+      byYear.get(year)!.push(p);
+    }
+
+    // Sort years descending
+    const sortedYears = [...byYear.keys()].sort((a, b) => b.localeCompare(a));
+
     const lines: string[] = [
       "# Technical CV",
       "",
@@ -24,9 +48,18 @@ export class MarkdownRenderer implements OutputRenderer {
       "",
     ];
 
-    for (const project of selected) {
-      lines.push(...renderProject(project));
+    for (const year of sortedYears) {
+      const projects = byYear.get(year)!;
+      lines.push(`## ${year}`);
       lines.push("");
+
+      for (const project of projects) {
+        const isDuplicate = (nameCounts.get(project.displayName) || 0) > 1;
+        lines.push(
+          ...renderProject(project, isDuplicate, scanRoot)
+        );
+        lines.push("");
+      }
     }
 
     // Summary footer
@@ -34,7 +67,9 @@ export class MarkdownRenderer implements OutputRenderer {
     const dateRange = getOverallDateRange(selected);
 
     lines.push("---", "");
-    lines.push(`**${selected.length} projects** across ${Object.keys(languages).length} languages`);
+    lines.push(
+      `**${selected.length} ${plural(selected.length, "project", "projects")}** across ${Object.keys(languages).length} ${plural(Object.keys(languages).length, "language", "languages")}`
+    );
     if (dateRange) {
       lines.push(`| ${dateRange.start} to ${dateRange.end}`);
     }
@@ -44,12 +79,26 @@ export class MarkdownRenderer implements OutputRenderer {
   }
 }
 
-function renderProject(project: Project): string[] {
+function renderProject(
+  project: Project,
+  isDuplicate: boolean,
+  scanRoot: string
+): string[] {
   const lines: string[] = [];
   const name = project.suggestedName || project.displayName;
   const dateStr = formatDateRange(project.dateRange);
 
-  lines.push(`## ${name}${dateStr ? ` (${dateStr})` : ""}`);
+  // For duplicate names, show parent path in parentheses
+  let title = name;
+  if (isDuplicate) {
+    const rel = relative(scanRoot, project.path);
+    const parent = dirname(rel);
+    if (parent && parent !== ".") {
+      title = `${name} (${parent})`;
+    }
+  }
+
+  lines.push(`### ${title}${dateStr ? ` — ${dateStr}` : ""}`);
   lines.push("");
 
   // Tech stack
@@ -66,7 +115,10 @@ function renderProject(project: Project): string[] {
   }
 
   // Contributions
-  if (project.analysis?.contributions && project.analysis.contributions.length > 0) {
+  if (
+    project.analysis?.contributions &&
+    project.analysis.contributions.length > 0
+  ) {
     lines.push("**Key contributions:**");
     for (const c of project.analysis.contributions) {
       lines.push(`- ${c}`);
@@ -77,9 +129,14 @@ function renderProject(project: Project): string[] {
   // Metadata line
   const meta: string[] = [];
   if (project.commitCount > 0) {
-    meta.push(`${project.commitCount} commits`);
+    meta.push(
+      `${project.commitCount} ${plural(project.commitCount, "commit", "commits")}`
+    );
   }
-  if (project.authorCommitCount > 0 && project.authorCommitCount !== project.commitCount) {
+  if (
+    project.authorCommitCount > 0 &&
+    project.authorCommitCount !== project.commitCount
+  ) {
     meta.push(`${project.authorCommitCount} by me`);
   }
   if (project.frameworks.length > 0) {
@@ -93,7 +150,17 @@ function renderProject(project: Project): string[] {
   return lines;
 }
 
-function formatDateRange(range: { start: string; end: string; approximate: boolean }): string {
+function getYear(project: Project): string {
+  const date = project.dateRange.end || project.dateRange.start;
+  if (!date) return "Unknown";
+  return date.split("-")[0] || "Unknown";
+}
+
+function formatDateRange(range: {
+  start: string;
+  end: string;
+  approximate: boolean;
+}): string {
   if (!range.start && !range.end) return "";
   const prefix = range.approximate ? "~" : "";
   const start = formatMonth(range.start);
@@ -105,12 +172,22 @@ function formatDateRange(range: { start: string; end: string; approximate: boole
 function formatMonth(dateStr: string): string {
   if (!dateStr) return "?";
   const [year, month] = dateStr.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
   const monthName = months[parseInt(month || "0", 10) - 1] || month;
   return `${monthName} ${year}`;
 }
 
-function countBy<T>(items: T[], key: (item: T) => string): Record<string, number> {
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+function countBy<T>(
+  items: T[],
+  key: (item: T) => string
+): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const item of items) {
     const k = key(item);
@@ -119,12 +196,37 @@ function countBy<T>(items: T[], key: (item: T) => string): Record<string, number
   return counts;
 }
 
-function getOverallDateRange(projects: Project[]): { start: string; end: string } | null {
-  const starts = projects.map((p) => p.dateRange.start).filter(Boolean).sort();
-  const ends = projects.map((p) => p.dateRange.end).filter(Boolean).sort();
+function getOverallDateRange(
+  projects: Project[]
+): { start: string; end: string } | null {
+  const starts = projects
+    .map((p) => p.dateRange.start)
+    .filter(Boolean)
+    .sort();
+  const ends = projects
+    .map((p) => p.dateRange.end)
+    .filter(Boolean)
+    .sort();
   if (starts.length === 0) return null;
   return {
     start: starts[0]!,
     end: ends[ends.length - 1] || starts[0]!,
   };
+}
+
+function findCommonPrefix(paths: string[]): string {
+  if (paths.length === 0) return "";
+  if (paths.length === 1) return dirname(paths[0]!);
+
+  const parts = paths[0]!.split("/");
+  let prefix = "";
+  for (let i = 0; i < parts.length; i++) {
+    const candidate = parts.slice(0, i + 1).join("/");
+    if (paths.every((p) => p.startsWith(candidate + "/") || p === candidate)) {
+      prefix = candidate;
+    } else {
+      break;
+    }
+  }
+  return prefix;
 }
