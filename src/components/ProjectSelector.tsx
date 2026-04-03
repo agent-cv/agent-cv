@@ -23,7 +23,11 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
   const { exit } = useApp();
   const [cursor, setCursor] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(projects.filter((p) => p.authorCommitCount > 0).map((p) => p.id))
+    new Set(
+      projects
+        .filter((p) => p.authorCommitCount > 0 || !p.hasGit)
+        .map((p) => p.id)
+    )
   );
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -207,11 +211,12 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           : "?";
         const secrets = p.privacyAudit?.secretsFound ?? 0;
         const hasMyCommits = p.authorCommitCount > 0;
+        const isMyProject = hasMyCommits || !p.hasGit;
 
-        // Color: green if you have commits, dim if it's someone else's project
+        // Color: normal if yours, gray if it's someone else's (git repo with 0 your commits)
         const nameColor = isCursor
           ? "cyan"
-          : hasMyCommits
+          : isMyProject
             ? undefined
             : "gray";
 
