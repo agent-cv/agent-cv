@@ -39,6 +39,23 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
       if (!map.has(groupKey)) map.set(groupKey, []);
       map.get(groupKey)!.push({ project, relPath: rel });
     }
+
+    // Create intermediate parent groups that have no direct projects
+    // e.g. if "learn/buildspace/solana-core" exists but "learn" and
+    // "learn/buildspace" don't, create them as empty groups so the
+    // tree renders correctly
+    const allPaths = [...map.keys()];
+    for (const path of allPaths) {
+      if (path === ".") continue;
+      const parts = path.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        const ancestor = parts.slice(0, i).join("/");
+        if (!map.has(ancestor)) {
+          map.set(ancestor, []);
+        }
+      }
+    }
+
     return [...map.entries()].sort(([a], [b]) => {
       if (a === ".") return -1;
       if (b === ".") return 1;
