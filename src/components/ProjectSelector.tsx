@@ -263,7 +263,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           return (
             <Box key={`g-${row.path}`} gap={1}>
               <Text color={isCursor ? "cyan" : "white"} bold inverse={isCursor}>
-                {checkbox} {arrow} {label}
+                {arrow} {checkbox} {label}
               </Text>
               <Text color={allChecked ? "green" : someChecked ? "yellow" : "gray"}>
                 {row.selectedCount}/{row.count}
