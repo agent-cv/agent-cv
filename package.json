@@ -4,12 +4,17 @@
   "description": "Generate technical CVs from your local project directories using AI",
   "type": "module",
   "bin": {
-    "agent-cv": "./src/cli.ts"
+    "agent-cv": "./dist/cli.js"
   },
+  "files": [
+    "dist/cli.js"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build src/cli.ts --compile --outfile dist/agent-cv --minify"
+    "build:npm": "bun run scripts/build-npm.ts",
+    "build:binary": "bun build src/cli.ts --compile --outfile dist/agent-cv --minify",
+    "prepublishOnly": "bun run build:npm"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -27,5 +32,12 @@
     "react": "^19.2.4",
     "simple-git": "^3.33.0",
     "zod": "^4.3.6"
-  }
+  },
+  "keywords": ["cv", "resume", "portfolio", "developer", "git", "ai", "cli"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beautyfree/agent-cv"
+  },
+  "homepage": "https://agent-cv.dev"
 }
