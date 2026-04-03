@@ -10,8 +10,8 @@ interface Props {
 }
 
 type Row =
-  | { kind: "group"; path: string; count: number; selectedCount: number }
-  | { kind: "project"; project: Project; relPath: string };
+  | { kind: "group"; path: string; count: number; selectedCount: number; depth: number }
+  | { kind: "project"; project: Project; relPath: string; depth: number };
 
 export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
   const { exit } = useApp();
@@ -96,15 +96,15 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
     }
 
     for (const [groupPath, items] of filteredGroups) {
-      // Skip if a parent group is collapsed
       if (isHiddenByParent(groupPath)) continue;
 
+      const depth = groupPath === "." ? 0 : groupPath.split("/").length;
       const { total, selected: sel } = countNested(groupPath);
-      result.push({ kind: "group", path: groupPath, count: total, selectedCount: sel });
+      result.push({ kind: "group", path: groupPath, count: total, selectedCount: sel, depth });
 
       if (!collapsed.has(groupPath)) {
         for (const item of items) {
-          result.push({ kind: "project", project: item.project, relPath: item.relPath });
+          result.push({ kind: "project", project: item.project, relPath: item.relPath, depth: depth + 1 });
         }
       }
     }
@@ -256,14 +256,17 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         if (row.kind === "group") {
           const isCollapsed = collapsed.has(row.path);
           const arrow = isCollapsed ? "▸" : "▾";
-          const label = row.path === "." ? "(root)" : row.path + "/";
+          // Show only the last segment of the path as label
+          const segments = row.path.split("/");
+          const label = row.path === "." ? "(root)" : segments[segments.length - 1] + "/";
           const allChecked = row.selectedCount === row.count;
           const someChecked = row.selectedCount > 0;
           const checkbox = allChecked ? "[x]" : someChecked ? "[-]" : "[ ]";
+          const indent = "  ".repeat(row.depth);
           return (
             <Box key={`g-${row.path}`} gap={1}>
               <Text color={isCursor ? "cyan" : "white"} bold inverse={isCursor}>
-                {arrow} {checkbox} {label}
+                {indent}{arrow} {checkbox} {label}
               </Text>
               <Text color={allChecked ? "green" : someChecked ? "yellow" : "gray"}>
                 {row.selectedCount}/{row.count}
@@ -280,11 +283,12 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         const hasMyCommits = p.authorCommitCount > 0;
         const isMyProject = hasMyCommits || !p.hasGit || p.commitCount === 0 || p.hasUncommittedChanges;
         const nameColor = isCursor ? "cyan" : isMyProject ? undefined : "gray";
+        const indent = "  ".repeat(row.depth);
 
         return (
           <Box key={p.id} gap={1}>
             <Text color={nameColor} inverse={isCursor}>
-              {"    "}{checkbox} {p.displayName}
+              {indent}{checkbox} {p.displayName}
             </Text>
             {hasMyCommits && <Text color="green">★ {p.authorCommitCount} my / {p.commitCount} total</Text>}
             {p.tags.includes("forgotten-gem") && <Text color="yellow">💎 gem</Text>}
