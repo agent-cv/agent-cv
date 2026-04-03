@@ -267,42 +267,57 @@ export default function Generate({
 
         setProgress({ done: 0, total: toAnalyze.length });
 
-        for (let i = 0; i < toAnalyze.length; i++) {
-          const project = toAnalyze[i]!;
-          setCurrent(project.displayName);
+        // Analyze in parallel batches of 3
+        const BATCH_SIZE = 3;
+        let completed = 0;
+
+        for (let i = 0; i < toAnalyze.length; i += BATCH_SIZE) {
+          const batch = toAnalyze.slice(i, i + BATCH_SIZE);
+          setCurrent(batch.map((p) => p.displayName).join(", "));
 
           if (dryRun) {
-            const context = await buildProjectContext(project);
-            const totalChars =
-              context.readme.length + context.dependencies.length +
-              context.directoryTree.length + context.gitShortlog.length +
-              context.recentCommits.length;
-            console.error(
-              `\n--- DRY RUN: ${project.displayName} ---\n` +
-                `Context size: ~${Math.round(totalChars / 4)} tokens\n`
-            );
-            setProgress({ done: i + 1, total: toAnalyze.length });
+            for (const project of batch) {
+              const context = await buildProjectContext(project);
+              const totalChars =
+                context.readme.length + context.dependencies.length +
+                context.directoryTree.length + context.gitShortlog.length +
+                context.recentCommits.length;
+              console.error(
+                `\n--- DRY RUN: ${project.displayName} ---\n` +
+                  `Context size: ~${Math.round(totalChars / 4)} tokens\n`
+              );
+            }
+            completed += batch.length;
+            setProgress({ done: completed, total: toAnalyze.length });
             continue;
           }
 
-          try {
-            const context = await buildProjectContext(project);
-            const analysis = await adapter.analyze(context);
-            analysis.analyzedAtCommit = project.lastCommit || "";
-            analysis.promptVersion = PROMPT_VERSION;
-            project.analysis = analysis;
-          } catch (err: any) {
-            console.error(
-              `Warning: Failed to analyze ${project.displayName}: ${err.message}`
-            );
+          await Promise.all(
+            batch.map(async (project) => {
+              try {
+                const context = await buildProjectContext(project);
+                const analysis = await adapter.analyze(context);
+                analysis.analyzedAtCommit = project.lastCommit || "";
+                analysis.promptVersion = PROMPT_VERSION;
+                project.analysis = analysis;
+              } catch (err: any) {
+                console.error(
+                  `Warning: Failed to analyze ${project.displayName}: ${err.message}`
+                );
+              }
+            })
+          );
+
+          completed += batch.length;
+          setProgress({ done: completed, total: toAnalyze.length });
+
+          // Save after each batch (resume on failure)
+          if (inventory) {
+            await writeInventory(inventory);
           }
-
-          setProgress({ done: i + 1, total: toAnalyze.length });
         }
 
-        if (!dryRun && inventory) {
-          await writeInventory(inventory);
-        }
+        // Final save (batch saves handle intermediate state)
 
         setPhase("rendering");
         const renderer = new MarkdownRenderer();
