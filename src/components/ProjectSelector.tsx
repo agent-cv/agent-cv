@@ -40,10 +40,10 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
       map.get(groupKey)!.push({ project, relPath: rel });
     }
 
-    // Create intermediate parent groups that have no direct projects
-    // e.g. if "learn/buildspace/solana-core" exists but "learn" and
-    // "learn/buildspace" don't, create them as empty groups so the
-    // tree renders correctly
+    // Create intermediate parent groups only where needed.
+    // If all ancestors are empty (no direct projects), don't create
+    // them — the group will show its full relative path instead.
+    // Only create an ancestor if it already has direct projects.
     const allPaths = [...map.keys()];
     for (const path of allPaths) {
       if (path === ".") continue;
@@ -53,6 +53,27 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         if (!map.has(ancestor)) {
           map.set(ancestor, []);
         }
+      }
+    }
+
+    // Collapse chains of empty groups into their first non-empty descendant.
+    // learn/ (empty) → learn/buildspace/ (empty) → learn/buildspace/solana-core/ (has projects)
+    // becomes: learn/buildspace/solana-core/ shown with full path label
+    const emptyGroups = new Set<string>();
+    for (const [path, items] of map) {
+      if (items.length === 0) emptyGroups.add(path);
+    }
+    // An empty group is collapsible if ALL its children are either
+    // empty or it has exactly one child group (linear chain)
+    for (const emptyPath of emptyGroups) {
+      const children = [...map.keys()].filter(
+        (k) => k !== emptyPath && k.startsWith(emptyPath + "/") &&
+        k.split("/").length === emptyPath.split("/").length + 1
+      );
+      // Only collapse if this empty group has exactly one child
+      // (otherwise it's a branching point and should stay)
+      if (children.length === 1) {
+        map.delete(emptyPath);
       }
     }
 
@@ -283,9 +304,28 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         if (row.kind === "group") {
           const isCollapsed = collapsed.has(row.path);
           const arrow = isCollapsed ? "▸" : "▾";
-          // Show only the last segment of the path as label
-          const segments = row.path.split("/");
-          const label = row.path === "." ? "(root)" : segments[segments.length - 1] + "/";
+          // Show path relative to nearest visible parent group
+          // If parent was collapsed (removed), show full remaining path
+          const visibleGroupPaths = filteredGroups.map(([p]) => p).filter((p) => p !== row.path);
+          let label: string;
+          if (row.path === ".") {
+            label = "(root)";
+          } else {
+            // Find the closest ancestor that exists as a visible group
+            const parts = row.path.split("/");
+            let parentPath = "";
+            for (let i = parts.length - 1; i >= 1; i--) {
+              const candidate = parts.slice(0, i).join("/");
+              if (visibleGroupPaths.includes(candidate)) {
+                parentPath = candidate;
+                break;
+              }
+            }
+            // Label is the path relative to the parent, or full path if no parent
+            label = parentPath
+              ? row.path.slice(parentPath.length + 1) + "/"
+              : row.path + "/";
+          }
           const allChecked = row.selectedCount === row.count;
           const someChecked = row.selectedCount > 0;
           const checkbox = allChecked ? "[x]" : someChecked ? "[-]" : "[ ]";
