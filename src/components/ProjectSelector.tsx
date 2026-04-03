@@ -257,14 +257,16 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           const isCollapsed = collapsed.has(row.path);
           const arrow = isCollapsed ? "▸" : "▾";
           const label = row.path === "." ? "(root)" : row.path + "/";
-          const countLabel = `selected ${row.selectedCount} of ${row.count}`;
+          const allChecked = row.selectedCount === row.count;
+          const someChecked = row.selectedCount > 0;
+          const checkbox = allChecked ? "[x]" : someChecked ? "[-]" : "[ ]";
           return (
             <Box key={`g-${row.path}`} gap={1}>
               <Text color={isCursor ? "cyan" : "white"} bold inverse={isCursor}>
-                {arrow} {label}
+                {checkbox} {arrow} {label}
               </Text>
-              <Text color={row.selectedCount === row.count ? "green" : row.selectedCount > 0 ? "yellow" : "gray"}>
-                {countLabel}
+              <Text color={allChecked ? "green" : someChecked ? "yellow" : "gray"}>
+                {row.selectedCount}/{row.count}
               </Text>
             </Box>
           );
