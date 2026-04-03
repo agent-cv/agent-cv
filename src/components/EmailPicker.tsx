@@ -31,6 +31,14 @@ export function EmailPicker({ emailCounts, preSelected, onSubmit }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set(preSelected));
   const [phase, setPhase] = useState<"pick" | "save">("pick");
 
+  // Windowed scrolling
+  const windowSize = Math.min(15, emails.length);
+  const halfWindow = Math.floor(windowSize / 2);
+  let start = Math.max(0, cursor - halfWindow);
+  const end = Math.min(emails.length, start + windowSize);
+  if (end === emails.length) start = Math.max(0, end - windowSize);
+  const visible = emails.slice(start, end);
+
   useInput((input, key) => {
     if (phase === "save") {
       if (input === "y" || key.return) {
@@ -87,8 +95,9 @@ export function EmailPicker({ emailCounts, preSelected, onSubmit }: Props) {
         </Text>
       </Box>
 
-      {emails.map(({ email, count }, i) => {
-        const isCursor = i === cursor;
+      {visible.map(({ email, count }, i) => {
+        const globalIndex = start + i;
+        const isCursor = globalIndex === cursor;
         const isSelected = selected.has(email);
         const isFromConfig = preSelected.has(email);
         const checkbox = isSelected ? "[x]" : "[ ]";
@@ -110,6 +119,12 @@ export function EmailPicker({ emailCounts, preSelected, onSubmit }: Props) {
           </Box>
         );
       })}
+
+      {emails.length > windowSize && (
+        <Text dimColor>
+          {"\n"}{start + 1}-{end} of {emails.length}
+        </Text>
+      )}
     </Box>
   );
 }
