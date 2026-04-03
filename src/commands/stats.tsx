@@ -117,7 +117,7 @@ export default function Stats({}: Props) {
       <Text> </Text>
       <Text bold>Summary</Text>
       <Text>
-        {totalProjects} projects | {myProjects} yours | {totalProjects - myProjects} forks/clones | {sortedLangs.length} languages | {years[0]} — {years[years.length - 1]}
+        {totalProjects} projects | {myProjects} yours | {totalProjects - myProjects} forks/clones | {sortedLangs.length} languages | {years.find(y => y !== "Unknown") || "?"} — {[...years].reverse().find(y => y !== "Unknown") || "?"}
       </Text>
     </Box>
   );
