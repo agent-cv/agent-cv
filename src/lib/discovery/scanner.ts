@@ -327,25 +327,51 @@ const EXT_TO_LANG: Record<string, string> = {
   ".sh": "Shell", ".bash": "Shell", ".zsh": "Shell",
   ".yml": "YAML", ".yaml": "YAML",
   ".sol": "Solidity",
+  ".html": "HTML", ".htm": "HTML",
+  ".css": "CSS", ".scss": "CSS", ".less": "CSS",
+  ".vue": "Vue",
+  ".svelte": "Svelte",
+  ".fc": "FunC",
+  ".circom": "Circom",
+  ".move": "Move",
+  ".zig": "Zig",
+  ".r": "R",
+  ".jl": "Julia",
+  ".scala": "Scala",
+  ".clj": "Clojure",
+  ".hs": "Haskell",
+  ".erl": "Erlang",
+  ".elm": "Elm",
+  ".ml": "OCaml",
+  ".pbxproj": "Swift",
 };
 
 async function detectLanguageByFiles(dir: string): Promise<string> {
   try {
-    const entries = await readdir(dir, { withFileTypes: true });
     const counts = new Map<string, number>();
+    const SKIP = new Set(["node_modules", ".git", "dist", "build", "target", "__pycache__", ".next", "vendor", ".turbo"]);
 
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const dot = entry.name.lastIndexOf(".");
-      if (dot < 0) continue;
-      const ext = entry.name.slice(dot).toLowerCase();
-      const lang = EXT_TO_LANG[ext];
-      if (lang) counts.set(lang, (counts.get(lang) || 0) + 1);
+    // Walk up to 3 levels deep to find code files
+    async function walk(d: string, depth: number) {
+      if (depth > 3) return;
+      const entries = await readdir(d, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !SKIP.has(entry.name)) {
+          await walk(join(d, entry.name), depth + 1);
+        }
+        if (!entry.isFile()) continue;
+        const dot = entry.name.lastIndexOf(".");
+        if (dot < 0) continue;
+        const ext = entry.name.slice(dot).toLowerCase();
+        const lang = EXT_TO_LANG[ext];
+        if (lang) counts.set(lang, (counts.get(lang) || 0) + 1);
+      }
     }
+
+    await walk(dir, 0);
 
     if (counts.size === 0) return "Unknown";
 
-    // Return the most frequent language
     let best = "Unknown";
     let bestCount = 0;
     for (const [lang, count] of counts) {
