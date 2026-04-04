@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Text, Box } from "ink";
 import { z } from "zod/v4";
 import { resolve } from "node:path";
-import { scanDirectory } from "../lib/discovery/scanner.ts";
 import { readInventory } from "../lib/inventory/store.ts";
+import { scanAndMerge } from "../lib/pipeline.ts";
 import type { Project } from "../lib/types.ts";
 
 export const args = z.tuple([
@@ -34,18 +34,18 @@ export default function Diff({ args: [directory] }: Props) {
       try {
         const absDir = resolve(directory);
 
-        // Read existing inventory
-        const inventory = await readInventory();
+        // Read existing inventory BEFORE rescan
+        const oldInventory = await readInventory();
         const existingByPath = new Map(
-          inventory.projects
+          oldInventory.projects
             .filter((p) => p.path.startsWith(absDir))
             .map((p) => [p.path, p])
         );
 
-        // Fresh scan
-        const scanResult = await scanDirectory(directory, { verbose: false, emails: [] });
+        // Fresh scan (uses scanAndMerge from pipeline)
+        const { projects: scannedProjects } = await scanAndMerge(directory);
         const scannedByPath = new Map(
-          scanResult.projects.map((p) => [p.path, p])
+          scannedProjects.map((p) => [p.path, p])
         );
 
         setStatus("comparing");

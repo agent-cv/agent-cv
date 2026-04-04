@@ -1,36 +1,45 @@
 import React, { useEffect, useState } from "react";
 import { Text, Box } from "ink";
-import { z } from "zod/v4";
 import { readInventory } from "../lib/inventory/store.ts";
+import { scanAndMerge } from "../lib/pipeline.ts";
 import type { Inventory } from "../lib/types.ts";
 
-export const options = z.object({});
+interface Props {
+  args?: string[];
+  options: Record<string, any>;
+}
 
-type Props = {
-  options: z.infer<typeof options>;
-};
-
-export default function Stats({}: Props) {
+export default function Stats({ args }: Props) {
+  const directory = args?.[0];
   const [inventory, setInventory] = useState<Inventory | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function load() {
       try {
-        const inv = await readInventory();
-        if (inv.projects.length === 0) {
-          setError("No projects in inventory. Run 'agent-cv scan' first.");
-          return;
+        if (directory) {
+          setScanning(true);
+          const result = await scanAndMerge(directory);
+          setInventory(result.inventory);
+          setScanning(false);
+        } else {
+          const inv = await readInventory();
+          if (inv.projects.length === 0) {
+            setError("No projects in inventory. Run `agent-cv generate ~/Projects` first.");
+            return;
+          }
+          setInventory(inv);
         }
-        setInventory(inv);
       } catch (err: any) {
         setError(err.message);
       }
     }
     load();
-  }, []);
+  }, [directory]);
 
   if (error) return <Text color="red">Error: {error}</Text>;
+  if (scanning) return <Text color="yellow">Scanning {directory}...</Text>;
   if (!inventory) return <Text color="yellow">Loading inventory...</Text>;
 
   // Cache info

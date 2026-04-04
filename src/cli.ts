@@ -67,9 +67,10 @@ program
 program
   .command("stats")
   .description("Show tech stack evolution timeline and language breakdown")
-  .action(async (opts: any) => {
+  .argument("[directory]", "Directory to scan (uses existing inventory if omitted)")
+  .action(async (directory: string | undefined, opts: any) => {
     const { default: Stats } = await import("./commands/stats.tsx");
-    render(React.createElement(Stats, { options: opts }));
+    render(React.createElement(Stats, { args: directory ? [directory] : [], options: opts }));
   });
 
 // config
