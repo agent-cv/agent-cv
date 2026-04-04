@@ -26,7 +26,7 @@ export class CursorAdapter implements AgentAdapter {
       {
         stdout: "pipe",
         stderr: "pipe",
-        cwd: context.path,
+        cwd: context.path || undefined,
         timeout: 120_000,
       }
     );

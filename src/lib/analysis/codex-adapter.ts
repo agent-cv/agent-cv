@@ -19,14 +19,15 @@ export class CodexAdapter implements AgentAdapter {
   async analyze(context: ProjectContext): Promise<ProjectAnalysis> {
     const prompt = buildPrompt(context);
 
-    const proc = Bun.spawn(
-      ["codex", "exec", prompt, "-C", context.path, "-s", "read-only"],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-        timeout: 120_000,
-      }
-    );
+    const args = ["codex", "exec", prompt];
+    if (context.path) args.push("-C", context.path);
+    args.push("-s", "read-only");
+
+    const proc = Bun.spawn(args, {
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 120_000,
+    });
 
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),

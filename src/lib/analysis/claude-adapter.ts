@@ -31,7 +31,7 @@ export class ClaudeAdapter implements AgentAdapter {
         stdin: new Response(prompt),
         stdout: "pipe",
         stderr: "pipe",
-        cwd: context.path,
+        cwd: context.path || undefined,
         timeout: 120_000, // 2 minute timeout
       }
     );
