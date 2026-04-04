@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Text } from "ink";
 
-// Soft pastel palette, similar to Claude Code buddy
+// Same gradient as agent-cv.dev landing page
 const COLORS = [
-  "#B8A9E8", "#9AC8E8", "#A8D8C8", "#D4C09E", "#C8A0B8",
+  "#ff6b6b", "#ffa500", "#ffd700", "#4ecdc4", "#45b7d1", "#96c", "#ff6b9d",
 ];
 
 interface Props {
@@ -11,7 +11,8 @@ interface Props {
 }
 
 /**
- * Soft shimmer text — gradient slides right-to-left across characters.
+ * Rainbow shimmer text matching agent-cv.dev brand.
+ * Use only on "agent-cv" brand text.
  */
 export function Shimmer({ children }: Props) {
   const [offset, setOffset] = useState(0);
@@ -24,7 +25,7 @@ export function Shimmer({ children }: Props) {
   const chars = [...children];
 
   return (
-    <Text>
+    <Text bold>
       {chars.map((char, i) => {
         const colorIndex = (i + offset) % COLORS.length;
         return (

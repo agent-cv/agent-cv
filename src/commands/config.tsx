@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { readInventory, writeInventory } from "../lib/inventory/store.ts";
 import type { Inventory } from "../lib/types.ts";
 import { isTelemetryEnabled, setTelemetryEnabled } from "../lib/telemetry.ts";
+import { Shimmer } from "../components/Shimmer.tsx";
 
 export const options = z.object({});
 
@@ -93,7 +94,7 @@ export default function ConfigCommand({}: Props) {
   return (
     <Box flexDirection="column">
       <Box marginBottom={1} flexDirection="column">
-        <Text bold>agent-cv config</Text>
+        <Text><Shimmer>agent-cv</Shimmer> <Text bold>config</Text></Text>
         <Text dimColor>[Enter] edit  [q] quit  Saved to ~/.agent-cv/inventory.json</Text>
       </Box>
 
