@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput } from "ink";
 import { readInventory } from "../lib/inventory/store.ts";
-import { readConfig, writeConfig } from "../lib/config.ts";
-import { generateBioFromProjects, countUnanalyzed } from "../lib/pipeline.ts";
+import { readConfig } from "../lib/config.ts";
+import { countUnanalyzed } from "../lib/pipeline.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
 import {
   readAuthToken,
@@ -111,16 +111,6 @@ export default function Publish({ args, options }: Props) {
     setInventory(result.inventory);
     setSelectedProjects(result.projects);
     setAdapter(result.adapter);
-
-    // Generate bio if needed
-    const cfg = await readConfig();
-    if (!cfg.bio && result.adapter) {
-      try {
-        const bio = await generateBioFromProjects(result.projects, result.adapter);
-        if (bio) { cfg.bio = bio; await writeConfig(cfg); }
-      } catch { /* optional */ }
-    }
-
     setPhase("checking-public");
   }, []);
 

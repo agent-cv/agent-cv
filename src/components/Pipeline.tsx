@@ -11,7 +11,9 @@ import {
   collectEmails,
   recountAndTag,
   analyzeProjects,
+  generateBioFromProjects,
 } from "../lib/pipeline.ts";
+import { readConfig, writeConfig } from "../lib/config.ts";
 import type { Project, Inventory, AgentAdapter } from "../lib/types.ts";
 
 export interface PipelineOptions {
@@ -156,6 +158,19 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           noCache, dryRun,
           onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
         });
+
+        // Generate bio if not already set
+        if (!dryRun) {
+          const config = await readConfig();
+          if (!config.bio) {
+            setCurrent("Generating bio...");
+            try {
+              const bio = await generateBioFromProjects(selectedProjects, resolvedAdapter!);
+              if (bio) { config.bio = bio; await writeConfig(config); }
+            } catch { /* optional */ }
+          }
+        }
+
         if (inventory) await writeInventory(inventory);
         setPhase("done");
         onComplete({ projects: selectedProjects, inventory: inventory!, adapter: resolvedAdapter! });

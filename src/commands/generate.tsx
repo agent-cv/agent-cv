@@ -1,8 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { Text, Box } from "ink";
 import { MarkdownRenderer } from "../lib/output/markdown-renderer.ts";
-import { readConfig, writeConfig } from "../lib/config.ts";
-import { generateBioFromProjects } from "../lib/pipeline.ts";
+import { readConfig } from "../lib/config.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
 
 interface Props {
@@ -27,16 +26,7 @@ export default function Generate({ args: [directory], options }: Props) {
   const handleComplete = useCallback(async ({ projects, inventory, adapter }: PipelineResult) => {
     try {
       setPhase("rendering");
-
-      // Generate bio if needed
       const config = await readConfig();
-      if (!dryRun && !config.bio && adapter) {
-        try {
-          const bio = await generateBioFromProjects(projects, adapter);
-          if (bio) { config.bio = bio; await writeConfig(config); }
-        } catch { /* optional */ }
-      }
-
       const renderer = new MarkdownRenderer();
       const md = renderer.render(inventory, projects.map((p) => p.id), config);
       setMarkdown(md);
