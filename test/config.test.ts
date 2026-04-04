@@ -1,21 +1,36 @@
 import { describe, test, expect } from "bun:test";
-import { readConfig, writeConfig } from "../src/lib/config.ts";
+import { readInventory, writeInventory } from "../src/lib/inventory/store.ts";
 
-describe("config", () => {
-  test("readConfig returns defaults when no file", async () => {
-    const config = await readConfig();
-    expect(config.emails).toBeDefined();
-    expect(config.emailsConfirmed).toBeDefined();
+describe("inventory profile (was config)", () => {
+  test("readInventory returns default profile when no file", async () => {
+    const inv = await readInventory();
+    expect(inv.profile.emails).toBeDefined();
+    expect(inv.profile.emailsConfirmed).toBeDefined();
   });
 
-  test("writeConfig and readConfig roundtrip", async () => {
-    const testConfig = {
-      emails: ["test@example.com", "work@company.com"],
-      emailsConfirmed: true,
+  test("writeInventory and readInventory roundtrip profile", async () => {
+    const inv = await readInventory();
+    inv.profile.emails = ["test@example.com", "work@company.com"];
+    inv.profile.emailsConfirmed = true;
+    await writeInventory(inv);
+    const read = await readInventory();
+    expect(read.profile.emails).toEqual(["test@example.com", "work@company.com"]);
+    expect(read.profile.emailsConfirmed).toBe(true);
+  });
+
+  test("insights persist through roundtrip", async () => {
+    const inv = await readInventory();
+    inv.insights = {
+      bio: "A developer.",
+      highlights: ["project-a"],
+      narrative: "Started with frontend.",
+      strongestSkills: ["TypeScript"],
+      uniqueTraits: ["Fast learner"],
     };
-    await writeConfig(testConfig);
-    const read = await readConfig();
-    expect(read.emails).toEqual(testConfig.emails);
-    expect(read.emailsConfirmed).toBe(true);
+    await writeInventory(inv);
+    const read = await readInventory();
+    expect(read.insights.bio).toBe("A developer.");
+    expect(read.insights.highlights).toEqual(["project-a"]);
+    expect(read.insights.strongestSkills).toEqual(["TypeScript"]);
   });
 });

@@ -49,20 +49,17 @@ export async function scanAndMerge(
 /**
  * Step 2: Collect emails for the email picker.
  */
-export async function collectEmails(projects: Project[]): Promise<{
+export async function collectEmails(projects: Project[], savedEmails: string[] = []): Promise<{
   emailCounts: Map<string, number>;
   preSelected: Set<string>;
 }> {
-  const { readConfig } = await import("./config.ts");
-
   const gitDirs = projects.filter((p) => p.hasGit).map((p) => p.path);
   const allEmails = await collectAllRepoEmails(gitDirs);
   const configEmails = await collectUserEmails([]);
-  const config = await readConfig();
 
   const preSelected = new Set<string>([
     ...configEmails,
-    ...(config.emails || []).map((e: string) => e.toLowerCase()),
+    ...savedEmails.map((e: string) => e.toLowerCase()),
   ]);
 
   return { emailCounts: allEmails, preSelected };
@@ -158,17 +155,6 @@ export async function analyzeProjects(
     onProgress?.(completed, toAnalyze.length, "");
     await writeInventory(inventory);
   }
-}
-
-/**
- * Step 5: Generate bio from analyzed projects.
- */
-export async function generateBioFromProjects(
-  projects: Project[],
-  adapter: AgentAdapter
-): Promise<string> {
-  const { generateBio } = await import("./analysis/bio-generator.ts");
-  return generateBio(projects, adapter);
 }
 
 /**

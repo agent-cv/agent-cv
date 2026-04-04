@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { Text, Box } from "ink";
 import { MarkdownRenderer } from "../lib/output/markdown-renderer.ts";
-import { readConfig } from "../lib/config.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
 
 interface Props {
@@ -26,9 +25,8 @@ export default function Generate({ args: [directory], options }: Props) {
   const handleComplete = useCallback(async ({ projects, inventory, adapter }: PipelineResult) => {
     try {
       setPhase("rendering");
-      const config = await readConfig();
       const renderer = new MarkdownRenderer();
-      const md = renderer.render(inventory, projects.map((p) => p.id), config);
+      const md = renderer.render(inventory, projects.map((p) => p.id));
       setMarkdown(md);
       if (output && !dryRun) await Bun.write(output, md);
       setResult({ projects, inventory, adapter });

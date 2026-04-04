@@ -24,12 +24,15 @@ function makeProject(overrides: Partial<Project> = {}): Project {
   };
 }
 
-function makeInventory(projects: Project[]): Inventory {
+function makeInventory(projects: Project[], overrides: Partial<Inventory> = {}): Inventory {
   return {
     version: "1.0",
     lastScan: new Date().toISOString(),
     scanPaths: ["/projects"],
     projects,
+    profile: { emails: [], emailsConfirmed: false },
+    insights: {},
+    ...overrides,
   };
 }
 

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Text, Box } from "ink";
-import { writeInventory } from "../lib/inventory/store.ts";
-import { writeConfig } from "../lib/config.ts";
+import { readInventory, writeInventory } from "../lib/inventory/store.ts";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
 import { ProjectSelector } from "./ProjectSelector.tsx";
 import { EmailPicker } from "./EmailPicker.tsx";
@@ -11,9 +10,7 @@ import {
   collectEmails,
   recountAndTag,
   analyzeProjects,
-  generateBioFromProjects,
 } from "../lib/pipeline.ts";
-import { readConfig, writeConfig } from "../lib/config.ts";
 import type { Project, Inventory, AgentAdapter } from "../lib/types.ts";
 
 export interface PipelineOptions {
@@ -91,7 +88,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           return;
         }
 
-        const emails = await collectEmails(result.projects);
+        const emails = await collectEmails(result.projects, result.inventory.profile.emails);
         setEmailCounts(emails.emailCounts);
         setGitConfigEmails(emails.preSelected);
 
@@ -109,9 +106,13 @@ export function Pipeline({ options, onComplete, onError }: Props) {
   // Email picker
   const handleEmailPick = useCallback(async (selected: string[], save: boolean) => {
     setConfirmedEmails(selected);
-    if (save) await writeConfig({ emails: selected, emailsConfirmed: true });
+    if (save && inventory) {
+      inventory.profile.emails = selected;
+      inventory.profile.emailsConfirmed = true;
+      await writeInventory(inventory);
+    }
     setPhase("recounting");
-  }, []);
+  }, [inventory]);
 
   // Phase 2: Recount
   useEffect(() => {
@@ -159,16 +160,16 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
         });
 
-        // Generate bio if not already set
-        if (!dryRun) {
-          const config = await readConfig();
-          if (!config.bio) {
-            setCurrent("Generating bio...");
-            try {
-              const bio = await generateBioFromProjects(selectedProjects, resolvedAdapter!);
-              if (bio) { config.bio = bio; await writeConfig(config); }
-            } catch { /* optional */ }
-          }
+        // Generate profile insights (bio, highlights, narrative, skills)
+        if (!dryRun && inventory && !inventory.insights.bio) {
+          setCurrent("Generating profile insights...");
+          try {
+            const { generateProfileInsights } = await import("../lib/analysis/bio-generator.ts");
+            const insights = await generateProfileInsights(selectedProjects, resolvedAdapter!);
+            if (insights) {
+              inventory.insights = insights;
+            }
+          } catch { /* optional */ }
         }
 
         if (inventory) await writeInventory(inventory);

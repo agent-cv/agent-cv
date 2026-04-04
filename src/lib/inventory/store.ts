@@ -1,15 +1,20 @@
-import { readFile, writeFile, rename, mkdir, copyFile } from "node:fs/promises";
+import { readFile, writeFile, rename, mkdir, copyFile, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
-import type { Inventory, Project } from "../types.ts";
+import type { Inventory, Project, InventoryProfile, ProfileInsights } from "../types.ts";
 import { INVENTORY_VERSION } from "../types.ts";
 
 const DEFAULT_DIR = join(process.env.HOME || "~", ".agent-cv");
 const INVENTORY_FILE = "inventory.json";
+const OLD_CONFIG_FILE = "config.json";
 
 function getInventoryPath(): string {
   return join(DEFAULT_DIR, INVENTORY_FILE);
+}
+
+function defaultProfile(): InventoryProfile {
+  return { emails: [], emailsConfirmed: false, emailPublic: false };
 }
 
 function emptyInventory(): Inventory {
@@ -18,15 +23,55 @@ function emptyInventory(): Inventory {
     lastScan: new Date().toISOString(),
     scanPaths: [],
     projects: [],
+    profile: defaultProfile(),
+    insights: {},
   };
+}
+
+/**
+ * Migrate old config.json into inventory if it exists.
+ */
+async function migrateOldConfig(inventory: Inventory): Promise<boolean> {
+  const configPath = join(DEFAULT_DIR, OLD_CONFIG_FILE);
+  try {
+    const content = await readFile(configPath, "utf-8");
+    const config = JSON.parse(content);
+
+    // Merge profile fields
+    inventory.profile = {
+      name: config.name || inventory.profile.name,
+      emails: config.emails || inventory.profile.emails,
+      emailsConfirmed: config.emailsConfirmed ?? inventory.profile.emailsConfirmed,
+      emailPublic: config.emailPublic ?? inventory.profile.emailPublic,
+      socials: config.socials || inventory.profile.socials,
+    };
+
+    // Merge insights
+    inventory.insights = {
+      bio: config.bio || inventory.insights.bio,
+      highlights: config.highlights || inventory.insights.highlights,
+      narrative: config.narrative || inventory.insights.narrative,
+      strongestSkills: config.strongestSkills || inventory.insights.strongestSkills,
+      uniqueTraits: config.uniqueTraits || inventory.insights.uniqueTraits,
+    };
+
+    // Remove old config file
+    await unlink(configPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Read the inventory from disk.
  * Returns empty inventory if file doesn't exist or is corrupted.
+ * On first run, migrates old config.json if present.
  */
 export async function readInventory(): Promise<Inventory> {
   const path = getInventoryPath();
+
+  let inventory: Inventory;
 
   try {
     const content = await readFile(path, "utf-8");
@@ -37,27 +82,36 @@ export async function readInventory(): Promise<Inventory> {
       throw new Error("Invalid inventory structure");
     }
 
-    return parsed as Inventory;
+    // Ensure new fields exist (upgrade from older inventory format)
+    if (!parsed.profile) parsed.profile = defaultProfile();
+    if (!parsed.insights) parsed.insights = {};
+
+    inventory = parsed as Inventory;
   } catch (err: any) {
     if (err.code === "ENOENT") {
-      // First run, no inventory yet
-      return emptyInventory();
+      inventory = emptyInventory();
+    } else {
+      console.error(
+        `Warning: Inventory corrupted (${err.message}). Creating fresh inventory.`
+      );
+      try {
+        const backupPath = path + ".backup." + Date.now();
+        await copyFile(path, backupPath);
+        console.error(`  Backup saved to: ${backupPath}`);
+      } catch {
+        // Can't backup, just continue
+      }
+      inventory = emptyInventory();
     }
-
-    // Corrupted file — backup and start fresh
-    console.error(
-      `Warning: Inventory corrupted (${err.message}). Creating fresh inventory.`
-    );
-    try {
-      const backupPath = path + ".backup." + Date.now();
-      await copyFile(path, backupPath);
-      console.error(`  Backup saved to: ${backupPath}`);
-    } catch {
-      // Can't backup, just continue
-    }
-
-    return emptyInventory();
   }
+
+  // Migrate old config.json if it exists
+  const migrated = await migrateOldConfig(inventory);
+  if (migrated) {
+    await writeInventory(inventory);
+  }
+
+  return inventory;
 }
 
 /**
@@ -149,5 +203,7 @@ export function mergeInventory(
     lastScan: new Date().toISOString(),
     scanPaths: [...new Set([...existing.scanPaths, scanPath])],
     projects: merged,
+    profile: existing.profile || defaultProfile(),
+    insights: existing.insights || {},
   };
 }

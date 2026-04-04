@@ -36,6 +36,8 @@ describe("mergeInventory", () => {
       lastScan: "2024-01-01",
       scanPaths: ["/tmp"],
       projects: [],
+      profile: { emails: [], emailsConfirmed: false },
+      insights: {},
     };
     const scanned = [makeProject({ id: "new-1", displayName: "new-project" })];
 
@@ -57,6 +59,8 @@ describe("mergeInventory", () => {
       lastScan: "2024-01-01",
       scanPaths: ["/tmp"],
       projects: [makeProject({ id: "p1", analysis })],
+      profile: { emails: [], emailsConfirmed: false },
+      insights: {},
     };
     const scanned = [makeProject({ id: "p1" })];
 
@@ -70,6 +74,8 @@ describe("mergeInventory", () => {
       lastScan: "2024-01-01",
       scanPaths: ["/tmp"],
       projects: [makeProject({ id: "old", path: "/tmp/old-project" })],
+      profile: { emails: [], emailsConfirmed: false },
+      insights: {},
     };
 
     const merged = mergeInventory(existing, [], "/tmp");
@@ -82,6 +88,8 @@ describe("mergeInventory", () => {
       lastScan: "2024-01-01",
       scanPaths: ["/tmp"],
       projects: [makeProject({ id: "p1", tags: ["forgotten-gem"] })],
+      profile: { emails: [], emailsConfirmed: false },
+      insights: {},
     };
     const scanned = [makeProject({ id: "p1" })];
 
@@ -95,6 +103,8 @@ describe("mergeInventory", () => {
       lastScan: "2024-01-01",
       scanPaths: ["/old-path"],
       projects: [],
+      profile: { emails: [], emailsConfirmed: false },
+      insights: {},
     };
 
     const merged = mergeInventory(existing, [], "/new-path");

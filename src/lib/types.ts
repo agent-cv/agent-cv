@@ -60,11 +60,37 @@ export interface PrivacyAuditResult {
   auditedAt: string;
 }
 
+export interface Socials {
+  github?: string;
+  linkedin?: string;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+}
+
+export interface ProfileInsights {
+  bio?: string;
+  highlights?: string[];
+  narrative?: string;
+  strongestSkills?: string[];
+  uniqueTraits?: string[];
+}
+
+export interface InventoryProfile {
+  name?: string;
+  emails: string[];
+  emailsConfirmed: boolean;
+  emailPublic?: boolean;
+  socials?: Socials;
+}
+
 export interface Inventory {
   version: string;
   lastScan: string;
   scanPaths: string[];
   projects: Project[];
+  profile: InventoryProfile;
+  insights: ProfileInsights;
 }
 
 export interface AgentAdapter {
@@ -88,5 +114,6 @@ export interface OutputRenderer {
   name: string;
   render(inventory: Inventory, selectedIds: string[]): string;
 }
+
 
 export const INVENTORY_VERSION = "1.0";

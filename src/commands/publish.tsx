@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput } from "ink";
 import { readInventory } from "../lib/inventory/store.ts";
-import { readConfig } from "../lib/config.ts";
 import { countUnanalyzed } from "../lib/pipeline.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
 import {
@@ -142,8 +141,7 @@ export default function Publish({ args, options }: Props) {
   async function doPublish() {
     setPhase("publishing");
     try {
-      const cfg = await readConfig();
-      const payload = sanitizeForPublish(inventory!, publicFlags, cfg, options.bio);
+      const payload = sanitizeForPublish(inventory!, publicFlags, options.bio);
       const result = await publishToApi(jwt, payload);
       setResultUrl(result.url);
       setPhase("done");
@@ -235,9 +233,9 @@ async function checkPublicRepos(projects: Project[]): Promise<Record<string, boo
 function sanitizeForPublish(
   inventory: Inventory,
   publicFlags: Record<string, boolean>,
-  config: Awaited<ReturnType<typeof readConfig>>,
   bioOverride?: string
 ) {
+  const { profile, insights } = inventory;
   const projects = inventory.projects.filter((p) => p.included !== false).map((p: Project) => {
     const isPublic = publicFlags[p.id] ?? false;
     return {
@@ -253,10 +251,14 @@ function sanitizeForPublish(
   return {
     inventory: { version: inventory.version, projects },
     profile: {
-      name: config.name,
-      bio: bioOverride || config.bio,
-      socials: config.socials,
-      email: config.emailPublic ? config.emails?.[0] : undefined,
+      name: profile.name,
+      bio: bioOverride || insights.bio,
+      socials: profile.socials,
+      email: profile.emailPublic ? profile.emails?.[0] : undefined,
+      highlights: insights.highlights,
+      narrative: insights.narrative,
+      strongestSkills: insights.strongestSkills,
+      uniqueTraits: insights.uniqueTraits,
     },
   };
 }

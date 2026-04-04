@@ -1,13 +1,12 @@
 import { relative, dirname } from "node:path";
 import type { Inventory, OutputRenderer, Project } from "../types.ts";
-import type { Config } from "../config.ts";
 
 const MAX_CONTRIBUTIONS = 5;
 
 export class MarkdownRenderer implements OutputRenderer {
   name = "markdown";
 
-  render(inventory: Inventory, selectedIds: string[], config?: Config): string {
+  render(inventory: Inventory, selectedIds: string[]): string {
     const selected = inventory.projects.filter(
       (p) => selectedIds.includes(p.id) && !p.tags.includes("removed")
     );
@@ -15,6 +14,8 @@ export class MarkdownRenderer implements OutputRenderer {
     if (selected.length === 0) {
       return "# Technical CV\n\n*No projects selected.*\n";
     }
+
+    const { profile, insights } = inventory;
 
     // Detect duplicate display names
     const nameCounts = new Map<string, number>();
@@ -40,30 +41,40 @@ export class MarkdownRenderer implements OutputRenderer {
     // Add Unknown at the end if exists
     if (byYear.has("Unknown")) sortedYears.push("Unknown");
 
-    const title = config?.name || "Technical CV";
+    const title = profile?.name || "Technical CV";
     const lines: string[] = [
       `# ${title}`,
       "",
     ];
 
     // Bio (AI-generated or auto-summary)
-    if (config?.bio) {
-      lines.push(config.bio, "");
+    if (insights?.bio) {
+      lines.push(insights.bio, "");
     } else if (summary) {
       lines.push(summary, "");
     }
 
+    // Career narrative
+    if (insights?.narrative) {
+      lines.push(`*${insights.narrative}*`, "");
+    }
+
+    // Strongest skills
+    if (insights?.strongestSkills && insights.strongestSkills.length > 0) {
+      lines.push(`**Skills:** ${insights.strongestSkills.join(" · ")}`, "");
+    }
+
     // Social links
-    if (config?.socials) {
+    if (profile?.socials) {
       const links: string[] = [];
-      const s = config.socials;
+      const s = profile.socials;
       if (s.github) links.push(`[GitHub](https://github.com/${s.github})`);
       if (s.linkedin) links.push(`[LinkedIn](https://linkedin.com/in/${s.linkedin})`);
       if (s.twitter) links.push(`[Twitter](https://twitter.com/${s.twitter})`);
       if (s.telegram) links.push(`[Telegram](https://t.me/${s.telegram})`);
       if (s.website) links.push(`[Website](${s.website})`);
-      if (config.emailPublic && config.emails?.length > 0) {
-        links.push(`[Email](mailto:${config.emails[0]})`);
+      if (profile.emailPublic && profile.emails?.length > 0) {
+        links.push(`[Email](mailto:${profile.emails[0]})`);
       }
       if (links.length > 0) {
         lines.push(links.join(" | "), "");
@@ -80,7 +91,8 @@ export class MarkdownRenderer implements OutputRenderer {
 
       for (const project of projects) {
         const isDuplicate = (nameCounts.get(project.displayName) || 0) > 1;
-        lines.push(...renderProject(project, isDuplicate, scanRoot));
+        const isHighlighted = insights?.highlights?.includes(project.displayName) ?? false;
+        lines.push(...renderProject(project, isDuplicate, scanRoot, isHighlighted));
         lines.push("");
       }
     }
@@ -156,7 +168,8 @@ function generateSummary(projects: Project[]): string {
 function renderProject(
   project: Project,
   isDuplicate: boolean,
-  scanRoot: string
+  scanRoot: string,
+  isHighlighted: boolean = false
 ): string[] {
   const lines: string[] = [];
   const name = project.suggestedName || project.displayName;
@@ -171,7 +184,8 @@ function renderProject(
     }
   }
 
-  lines.push(`### ${title}${dateStr ? ` — ${dateStr}` : ""}`);
+  const highlight = isHighlighted ? " **Featured**" : "";
+  lines.push(`### ${title}${dateStr ? ` — ${dateStr}` : ""}${highlight}`);
   lines.push("");
 
   // Tech stack
