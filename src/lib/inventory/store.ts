@@ -223,5 +223,6 @@ export function mergeInventory(
     projects: merged,
     profile: existing.profile || defaultProfile(),
     insights: existing.insights || {},
+    lastAgent: existing.lastAgent,
   };
 }
