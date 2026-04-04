@@ -16,11 +16,17 @@ type Row =
 export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
   const { exit } = useApp();
   const [cursor, setCursor] = useState(0);
+
+  // If projects have been previously selected (included !== undefined from saved inventory),
+  // use their saved state. For new projects (first scan), use the heuristic.
+  const hasSavedSelection = projects.some((p) => p.included === false);
   const initialSelection = useMemo(() => new Set(
-    projects
-      .filter((p) => p.authorCommitCount > 0 || !p.hasGit || p.commitCount === 0 || p.hasUncommittedChanges)
-      .map((p) => p.id)
-  ), [projects]);
+    hasSavedSelection
+      ? projects.filter((p) => p.included).map((p) => p.id)
+      : projects
+          .filter((p) => p.authorCommitCount > 0 || !p.hasGit || p.commitCount === 0 || p.hasUncommittedChanges)
+          .map((p) => p.id)
+  ), [projects, hasSavedSelection]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set(initialSelection));
   const [undoStack, setUndoStack] = useState<Set<string>[]>([]);
@@ -306,6 +312,9 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
         <Text bold>
           Select projects for CV ({selected.size}/{projects.length})
           {search && <Text color="cyan"> — {filteredGroups.reduce((n, [, items]) => n + items.length, 0)} matches</Text>}
+          {!search && projects.some((p) => p.tags.includes("new")) && (
+            <Text color="blue"> — {projects.filter((p) => p.tags.includes("new")).length} new</Text>
+          )}
         </Text>
         <Text dimColor>
           [Space] toggle  [Enter] expand/collapse  [s] submit  [a] all  [u] undo  [r] reset  Type to search
@@ -382,6 +391,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
             <Text color={nameColor} inverse={isCursor}>
               {indent}{checkbox} {p.displayName}
             </Text>
+            {p.tags.includes("new") && <Text color="blue" bold>NEW</Text>}
             {hasMyCommits && <Text color="green">★ {p.authorCommitCount} my / {p.commitCount} total</Text>}
             {p.tags.includes("forgotten-gem") && <Text color="yellow">💎 gem</Text>}
             {!p.hasGit && <Text dimColor>no git</Text>}

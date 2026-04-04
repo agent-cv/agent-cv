@@ -196,8 +196,12 @@ export function mergeInventory(
     }
   }
 
-  // Add new projects
+  // Add new projects (tag as "new" if this isn't the first scan)
+  const isFirstScan = existing.projects.length === 0;
   for (const project of scannedById.values()) {
+    if (!isFirstScan && !project.tags.includes("new")) {
+      project.tags.push("new");
+    }
     merged.push(project);
   }
 

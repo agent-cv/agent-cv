@@ -129,9 +129,15 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     recount();
   }, [phase, confirmedEmails, allProjects, inventory, selectAll]);
 
-  // Project selection
+  // Project selection — save included/excluded to inventory
   const handleSelection = useCallback(async (selected: Project[]) => {
     if (selected.length === 0) { onError("No projects selected."); return; }
+    const selectedIds = new Set(selected.map((p) => p.id));
+    for (const p of allProjects) {
+      p.included = selectedIds.has(p.id);
+      p.tags = p.tags.filter((t) => t !== "new");
+    }
+    if (inventory) await writeInventory(inventory);
     setSelectedProjects(selected);
     if (agent !== "auto") {
       try {
