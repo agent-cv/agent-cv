@@ -367,37 +367,35 @@ export function Pipeline({ options, onComplete, onError }: Props) {
       }
     };
 
-    // Show last ~15 projects (most recent activity visible)
     const allEntries = [...projectStatuses.entries()]
       .map(([id, { status, detail }]) => {
         const p = selectedProjects.find((p) => p.id === id);
-        return { name: p?.displayName || id, status, detail };
+        return { id, name: p?.displayName || id, status, detail };
       });
     const analyzing = allEntries.filter((e) => e.status === "analyzing");
     const done = allEntries.filter((e) => e.status === "done" || e.status === "cached");
     const failed = allEntries.filter((e) => e.status === "failed");
     const queued = allEntries.filter((e) => e.status === "queued");
 
-    // Show: analyzing first, then last few done, then queued count
+    // Compact display: currently analyzing + last 3 done
     const visible = [
       ...analyzing,
-      ...failed,
-      ...done.slice(-5),
+      ...done.slice(-3),
     ];
 
     return (
       <Box flexDirection="column">
         <Text bold>Analyzing projects [{done.length}/{allEntries.length}]</Text>
+        {failed.length > 0 && <Text color="red">{failed.length} failed</Text>}
         {dryRun && <Text dimColor>(dry-run mode, no LLM calls)</Text>}
         <Text> </Text>
         {visible.map((entry) => (
-          <Box key={entry.name} gap={1}>
+          <Box key={entry.id} gap={1}>
             <Text color={statusColor(entry.status)}>{statusIcon(entry.status)}</Text>
-            <Text color={entry.status === "analyzing" ? "yellow" : entry.status === "failed" ? "red" : undefined}>
+            <Text color={entry.status === "analyzing" ? "yellow" : undefined}>
               {entry.name}
             </Text>
             {entry.detail && entry.status === "done" && <Text dimColor>{entry.detail}</Text>}
-            {entry.detail && entry.status === "failed" && <Text color="red" dimColor>{entry.detail}</Text>}
             {entry.status === "analyzing" && <Text color="yellow">analyzing...</Text>}
           </Box>
         ))}
