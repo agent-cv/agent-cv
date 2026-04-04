@@ -254,10 +254,12 @@ function sanitizeForPublish(
       id: p.id, displayName: p.displayName, type: p.type, language: p.language,
       frameworks: p.frameworks, dateRange: p.dateRange, hasGit: p.hasGit,
       commitCount: p.commitCount, authorCommitCount: p.authorCommitCount,
-      hasUncommittedChanges: p.hasUncommittedChanges, lastCommit: p.lastCommit,
-      size: p.size, description: p.description, license: p.license,
-      analysis: p.analysis, tags: p.tags, included: true,
-      remoteUrl: isPublic ? p.remoteUrl : null, isPublic,
+      hasUncommittedChanges: p.hasUncommittedChanges,
+      lastCommit: p.lastCommit || undefined,
+      analysis: p.analysis || undefined,
+      tags: p.tags, included: true,
+      remoteUrl: isPublic ? (p.remoteUrl || undefined) : undefined,
+      isPublic,
     };
   });
   // Build socialLinks in the format the web API expects (full URLs)
