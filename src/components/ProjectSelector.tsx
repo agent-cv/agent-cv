@@ -171,7 +171,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
 
       if (!collapsed.has(groupPath)) {
         for (const item of items) {
-          result.push({ kind: "project", project: item.project, relPath: item.relPath, depth: depth + 2 });
+          result.push({ kind: "project", project: item.project, relPath: item.relPath, depth: depth + 1 });
         }
       }
     }
@@ -363,7 +363,7 @@ export function ProjectSelector({ projects, scanRoot, onSubmit }: Props) {
           const allChecked = row.selectedCount === row.count;
           const someChecked = row.selectedCount > 0;
           const checkbox = allChecked ? "[x]" : someChecked ? "[-]" : "[ ]";
-          const indent = "  ".repeat(row.depth);
+          const indent = "   ".repeat(row.depth);
           return (
             <Box key={`g-${row.path}`} gap={1}>
               <Text color={isCursor ? "cyan" : "white"} bold inverse={isCursor}>
