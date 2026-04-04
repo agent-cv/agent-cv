@@ -218,17 +218,31 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         if (!dryRun) {
           setCurrent("fetching GitHub data...");
           await enrichGitHubData(selectedProjects);
+          // Sync to inventory.projects
+          if (inventory) {
+            const enriched = new Map(selectedProjects.map((p) => [p.id, p]));
+            for (const p of inventory.projects) {
+              const ep = enriched.get(p.id);
+              if (ep) { p.stars = ep.stars; p.isPublic = ep.isPublic; }
+            }
+          }
         }
 
         // Calculate significance scores and assign tiers
-        if (!dryRun) {
+        if (!dryRun && inventory) {
           const { assignTiers } = await import("../lib/discovery/significance.ts");
           const tiers = assignTiers(selectedProjects);
-          for (const p of selectedProjects) {
-            const info = tiers.get(p.id);
+          // Write to both selectedProjects and inventory.projects by id
+          const tiersById = new Map(tiers);
+          for (const p of inventory.projects) {
+            const info = tiersById.get(p.id);
             if (info) { p.significance = info.score; p.tier = info.tier; }
           }
-          if (inventory) await writeInventory(inventory);
+          for (const p of selectedProjects) {
+            const info = tiersById.get(p.id);
+            if (info) { p.significance = info.score; p.tier = info.tier; }
+          }
+          await writeInventory(inventory);
         }
 
         // Generate profile insights (bio, highlights, narrative, skills)
