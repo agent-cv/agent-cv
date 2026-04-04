@@ -3,6 +3,8 @@ import simpleGit from "simple-git";
 export interface GitMetadata {
   firstCommitDate: string;
   lastCommitDate: string;
+  authorFirstCommitDate: string;
+  authorLastCommitDate: string;
   totalCommits: number;
   authorCommits: number;
   authorEmail: string;
@@ -203,6 +205,8 @@ export async function extractGitMetadata(
       return {
         firstCommitDate: "",
         lastCommitDate: "",
+        authorFirstCommitDate: "",
+        authorLastCommitDate: "",
         totalCommits: 0,
         authorCommits: 0,
         authorEmail: "",
@@ -210,6 +214,7 @@ export async function extractGitMetadata(
       };
     }
 
+    // All commits dates
     let firstCommitDate = "";
     let lastCommitDate = "";
     try {
@@ -222,9 +227,11 @@ export async function extractGitMetadata(
       lastCommitDate = lastLog.trim().split("T")[0] || "";
     } catch { /* can't get dates */ }
 
-    // Count commits across all known user emails
+    // Count commits + dates per user email
     let authorCommits = 0;
     let matchedEmail = "";
+    let authorFirstCommitDate = "";
+    let authorLastCommitDate = "";
 
     for (const email of userEmails) {
       try {
@@ -234,12 +241,34 @@ export async function extractGitMetadata(
         const n = parseInt(count.trim(), 10) || 0;
         authorCommits += n;
         if (n > 0 && !matchedEmail) matchedEmail = email;
+
+        if (n > 0) {
+          // Author's first commit
+          const first = await git.raw([
+            "log", "--reverse", "--author", email, "--format=%aI", "--max-count=1",
+          ]);
+          const firstDate = first.trim().split("T")[0] || "";
+          if (firstDate && (!authorFirstCommitDate || firstDate < authorFirstCommitDate)) {
+            authorFirstCommitDate = firstDate;
+          }
+
+          // Author's last commit
+          const last = await git.raw([
+            "log", "--author", email, "--format=%aI", "--max-count=1",
+          ]);
+          const lastDate = last.trim().split("T")[0] || "";
+          if (lastDate && (!authorLastCommitDate || lastDate > authorLastCommitDate)) {
+            authorLastCommitDate = lastDate;
+          }
+        }
       } catch { /* ignore */ }
     }
 
     return {
       firstCommitDate,
       lastCommitDate,
+      authorFirstCommitDate,
+      authorLastCommitDate,
       totalCommits,
       authorCommits,
       authorEmail: matchedEmail,

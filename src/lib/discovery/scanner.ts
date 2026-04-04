@@ -298,26 +298,29 @@ async function buildProject(
   // Git metadata (dates, commits)
   const gitMeta = hasGit ? await extractGitMetadata(dir, userEmails) : null;
 
-  // File timestamps fallback
-  let dateRange = {
-    start: "",
-    end: "",
-    approximate: !hasGit,
-  };
+  // Date range: prefer author's own commits, fall back to all commits, then file dates
+  let dateRange = { start: "", end: "", approximate: true };
 
-  if (gitMeta) {
-    dateRange.start = gitMeta.firstCommitDate;
+  if (gitMeta?.authorFirstCommitDate) {
+    // Best case: user has commits in this repo
+    dateRange.start = gitMeta.authorFirstCommitDate;
+    dateRange.end = gitMeta.authorLastCommitDate;
+    dateRange.approximate = false;
+  } else if (gitMeta && gitMeta.totalCommits === 0) {
+    // git init but no commits — use file dates
+    const fileDates = await getFileDates(dir);
+    dateRange.start = fileDates.start;
+    dateRange.end = fileDates.end;
+  } else if (gitMeta) {
+    // Cloned repo, no user commits — use .git/HEAD birthtime (clone date)
+    const cloneDate = await getGitCreationDate(dir);
+    dateRange.start = cloneDate || gitMeta.firstCommitDate;
     dateRange.end = gitMeta.lastCommitDate;
   } else {
-    try {
-      const dirStat = await stat(dir);
-      const created = dirStat.birthtime.toISOString().split("T")[0]!;
-      const modified = dirStat.mtime.toISOString().split("T")[0]!;
-      dateRange.start = created;
-      dateRange.end = modified;
-    } catch {
-      // Can't get dates
-    }
+    // No git at all — use file dates
+    const fileDates = await getFileDates(dir);
+    dateRange.start = fileDates.start;
+    dateRange.end = fileDates.end;
   }
 
   // Privacy audit
@@ -374,6 +377,49 @@ async function buildProject(
     remoteUrl: hasGit ? await extractRemoteUrl(dir) : undefined,
     authorEmail: gitMeta?.authorEmail,
   };
+}
+
+/**
+ * Get the creation date of .git/HEAD — reflects when git init or git clone happened.
+ */
+async function getGitCreationDate(dir: string): Promise<string> {
+  try {
+    const headStat = await stat(join(dir, ".git", "HEAD"));
+    return headStat.birthtime.toISOString().split("T")[0] || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Walk top-level files to find min birthtime and max mtime.
+ * Used when git has no commits or no git at all.
+ */
+async function getFileDates(dir: string): Promise<{ start: string; end: string }> {
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    let minBirth = Infinity;
+    let maxMtime = 0;
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      try {
+        const s = await stat(join(dir, entry.name));
+        const birth = s.birthtime.getTime();
+        const mtime = s.mtime.getTime();
+        if (birth < minBirth) minBirth = birth;
+        if (mtime > maxMtime) maxMtime = mtime;
+      } catch { /* skip */ }
+    }
+
+    if (minBirth === Infinity) return { start: "", end: "" };
+    return {
+      start: new Date(minBirth).toISOString().split("T")[0] || "",
+      end: new Date(maxMtime).toISOString().split("T")[0] || "",
+    };
+  } catch {
+    return { start: "", end: "" };
+  }
 }
 
 const EXT_TO_LANG: Record<string, string> = {
