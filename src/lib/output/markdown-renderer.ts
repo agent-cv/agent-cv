@@ -184,7 +184,7 @@ function renderProject(
     }
   }
 
-  const highlight = isHighlighted ? " **Featured**" : "";
+  const highlight = isHighlighted ? " **Highlight**" : "";
   lines.push(`### ${title}${dateStr ? ` — ${dateStr}` : ""}${highlight}`);
   lines.push("");
 
