@@ -161,6 +161,17 @@ export async function analyzeProjects(
 }
 
 /**
+ * Step 5: Generate bio from analyzed projects.
+ */
+export async function generateBioFromProjects(
+  projects: Project[],
+  adapter: AgentAdapter
+): Promise<string> {
+  const { generateBio } = await import("./analysis/bio-generator.ts");
+  return generateBio(projects, adapter);
+}
+
+/**
  * Check how many projects need analysis.
  */
 export function countUnanalyzed(projects: Project[]): number {

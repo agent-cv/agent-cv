@@ -97,4 +97,13 @@ program
     render(React.createElement(Unpublish, {}));
   });
 
+// config
+program
+  .command("config")
+  .description("Edit your profile: name, bio, socials, email privacy")
+  .action(async (opts: any) => {
+    const { default: ConfigCmd } = await import("./commands/config.tsx");
+    render(React.createElement(ConfigCmd, { options: opts }));
+  });
+
 await program.parseAsync();

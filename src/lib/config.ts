@@ -1,21 +1,38 @@
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
 const CONFIG_DIR = join(process.env.HOME || "~", ".agent-cv");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+
+export interface Socials {
+  github?: string;
+  linkedin?: string;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+}
 
 export interface Config {
   /** Confirmed user email addresses */
   emails: string[];
   /** Whether the email setup has been completed */
   emailsConfirmed: boolean;
+  /** Display name for CV header */
+  name?: string;
+  /** AI-generated bio (regenerated on each full generate) */
+  bio?: string;
+  /** Social links */
+  socials?: Socials;
+  /** Whether email should be shown publicly on CV/website */
+  emailPublic?: boolean;
 }
 
 function defaultConfig(): Config {
   return {
     emails: [],
     emailsConfirmed: false,
+    emailPublic: false,
   };
 }
 

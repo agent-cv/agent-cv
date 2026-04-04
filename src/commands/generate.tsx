@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { writeInventory } from "../lib/inventory/store.ts";
 import { MarkdownRenderer } from "../lib/output/markdown-renderer.ts";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
-import { writeConfig } from "../lib/config.ts";
+import { readConfig, writeConfig } from "../lib/config.ts";
 import { ProjectSelector } from "../components/ProjectSelector.tsx";
 import { EmailPicker } from "../components/EmailPicker.tsx";
 import { AgentPicker } from "../components/AgentPicker.tsx";
@@ -13,6 +13,7 @@ import {
   collectEmails,
   recountAndTag,
   analyzeProjects,
+  generateBioFromProjects,
 } from "../lib/pipeline.ts";
 import type { Project, Inventory, AgentAdapter } from "../lib/types.ts";
 
@@ -147,9 +148,22 @@ export default function Generate({
           onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
         });
 
+        // Generate bio from analyzed projects
         setPhase("rendering");
+        const config = await readConfig();
+        if (!dryRun && !config.bio && resolvedAdapter) {
+          setCurrent("Generating bio...");
+          try {
+            const bio = await generateBioFromProjects(selectedProjects, resolvedAdapter);
+            if (bio) {
+              config.bio = bio;
+              await writeConfig(config);
+            }
+          } catch { /* bio generation is optional */ }
+        }
+
         const renderer = new MarkdownRenderer();
-        const md = renderer.render(inventory!, selectedProjects.map((p) => p.id));
+        const md = renderer.render(inventory!, selectedProjects.map((p) => p.id), config);
         setMarkdown(md);
         if (output && !dryRun) await Bun.write(output, md);
         setPhase("done");
