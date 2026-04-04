@@ -255,10 +255,10 @@ function sanitizeForPublish(
       frameworks: p.frameworks, dateRange: p.dateRange, hasGit: p.hasGit,
       commitCount: p.commitCount, authorCommitCount: p.authorCommitCount,
       hasUncommittedChanges: p.hasUncommittedChanges,
-      lastCommit: p.lastCommit || undefined,
-      analysis: p.analysis || undefined,
+      lastCommit: p.lastCommit,
+      analysis: p.analysis,
       tags: p.tags, included: true,
-      remoteUrl: isPublic ? (p.remoteUrl || undefined) : undefined,
+      remoteUrl: isPublic ? p.remoteUrl : null,
       isPublic,
     };
   });
