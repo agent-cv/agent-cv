@@ -164,9 +164,8 @@ function sanitizeForPublish(inventory: Inventory, bio?: string) {
       analysis: p.analysis,
       tags: p.tags,
       included: true,
-      // Only include remoteUrl for repos under known public paths
-      remoteUrl: null, // TODO: extract from git remote and check isPublic
-      isPublic: undefined,
+      remoteUrl: p.remoteUrl ?? null,
+      isPublic: p.remoteUrl ? true : undefined, // assume public if has remote (CLI can't check GitHub API without token overhead)
     }));
 
   return {

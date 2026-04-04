@@ -249,3 +249,35 @@ export async function extractGitMetadata(
     return null;
   }
 }
+
+/**
+ * Extract the remote origin URL and normalize SSH → HTTPS.
+ */
+export async function extractRemoteUrl(dir: string): Promise<string | null> {
+  try {
+    const git = simpleGit(dir);
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find((r) => r.name === "origin");
+    if (!origin?.refs?.fetch) return null;
+
+    return normalizeGitUrl(origin.refs.fetch);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Normalize git remote URL to HTTPS format.
+ * git@github.com:user/repo.git → https://github.com/user/repo
+ * https://github.com/user/repo.git → https://github.com/user/repo
+ */
+function normalizeGitUrl(url: string): string {
+  // SSH format: git@github.com:user/repo.git
+  const sshMatch = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (sshMatch) {
+    return `https://${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  // HTTPS with .git suffix
+  return url.replace(/\.git$/, "");
+}

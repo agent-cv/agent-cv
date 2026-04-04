@@ -28,6 +28,8 @@ export interface Project {
   privacyAudit?: PrivacyAuditResult;
   tags: string[];
   included: boolean;
+  remoteUrl?: string;
+  authorEmail?: string;
 }
 
 export interface ProjectAnalysis {

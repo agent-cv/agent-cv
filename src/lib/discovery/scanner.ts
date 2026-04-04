@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { Project } from "../types.ts";
 import {
   extractGitMetadata,
+  extractRemoteUrl,
   collectUserEmails,
   discoverRepoLocalEmail,
 } from "./git-metadata.ts";
@@ -303,6 +304,8 @@ async function buildProject(
     privacyAudit,
     tags: [],
     included: true,
+    remoteUrl: hasGit ? await extractRemoteUrl(dir) : undefined,
+    authorEmail: gitMeta?.authorEmail,
   };
 }
 

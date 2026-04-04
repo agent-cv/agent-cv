@@ -16,6 +16,10 @@ agent-cv scan ~/Projects
 # Generate a CV (interactive: pick emails, pick projects)
 agent-cv generate ~/Projects --output cv.md
 
+# Publish your portfolio to the web
+agent-cv publish
+# → Your portfolio is live at https://agent-cv.dev/yourusername
+
 # See your tech evolution
 agent-cv stats
 
@@ -86,6 +90,8 @@ agent-cv generate ~/Projects
 | `agent-cv generate <dir>` | Full flow: scan → pick emails → pick projects → analyze → CV |
 | `agent-cv diff <dir>` | Show new/updated/removed projects since last scan |
 | `agent-cv stats` | Tech evolution timeline, language breakdown, framework ranking |
+| `agent-cv publish` | Publish your portfolio to [agent-cv.dev](https://agent-cv.dev) |
+| `agent-cv unpublish` | Remove your portfolio from agent-cv.dev |
 
 ## Flags
 
