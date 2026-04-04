@@ -213,15 +213,23 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     // Generate profile insights (bio, highlights, narrative, skills)
     async function finish() {
       try {
-        if (!dryRun && inventory && !inventory.insights.bio) {
-          setCurrent("generating profile insights...");
-          try {
-            const { generateProfileInsights } = await import("../lib/analysis/bio-generator.ts");
-            const insights = await generateProfileInsights(selectedProjects, resolvedAdapter!);
-            if (insights) {
-              inventory.insights = insights;
-            }
-          } catch { /* optional */ }
+        if (!dryRun && inventory) {
+          const { createHash } = await import("node:crypto");
+          const analyzed = selectedProjects.filter((p) => p.analysis);
+          const fingerprint = createHash("md5")
+            .update(analyzed.map((p) => `${p.id}:${p.analysis?.analyzedAt}`).sort().join("|"))
+            .digest("hex");
+
+          if (fingerprint !== inventory.insights._fingerprint) {
+            setCurrent("generating profile insights...");
+            try {
+              const { generateProfileInsights } = await import("../lib/analysis/bio-generator.ts");
+              const insights = await generateProfileInsights(selectedProjects, resolvedAdapter!);
+              if (insights) {
+                inventory.insights = { ...insights, _fingerprint: fingerprint };
+              }
+            } catch { /* optional */ }
+          }
         }
         if (inventory) await writeInventory(inventory);
         setPhase("done");

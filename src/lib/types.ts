@@ -74,6 +74,8 @@ export interface ProfileInsights {
   narrative?: string;
   strongestSkills?: string[];
   uniqueTraits?: string[];
+  /** MD5 hash of analyzed projects. Triggers regeneration when changed. */
+  _fingerprint?: string;
 }
 
 export interface InventoryProfile {
