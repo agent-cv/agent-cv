@@ -248,18 +248,24 @@ function sanitizeForPublish(
       remoteUrl: isPublic ? p.remoteUrl : null, isPublic,
     };
   });
+  // Build socialLinks in the format the web API expects (full URLs)
+  const socialLinks: Record<string, string> = {};
+  if (profile.socials?.github) socialLinks.github = `https://github.com/${profile.socials.github}`;
+  if (profile.socials?.twitter) socialLinks.twitter = `https://twitter.com/${profile.socials.twitter}`;
+  if (profile.socials?.linkedin) socialLinks.linkedin = `https://linkedin.com/in/${profile.socials.linkedin}`;
+  if (profile.socials?.telegram) socialLinks.telegram = `https://t.me/${profile.socials.telegram}`;
+  if (profile.socials?.website) socialLinks.website = profile.socials.website;
+  if (profile.emailPublic && profile.emails?.[0]) socialLinks.email = profile.emails[0];
+
   return {
     inventory: { version: inventory.version, projects },
-    profile: {
-      name: profile.name,
-      bio: bioOverride || insights.bio,
-      socials: profile.socials,
-      email: profile.emailPublic ? profile.emails?.[0] : undefined,
-      highlights: insights.highlights,
-      narrative: insights.narrative,
-      strongestSkills: insights.strongestSkills,
-      uniqueTraits: insights.uniqueTraits,
-    },
+    bio: bioOverride || insights.bio,
+    socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
+    name: profile.name,
+    highlights: insights.highlights,
+    narrative: insights.narrative,
+    strongestSkills: insights.strongestSkills,
+    uniqueTraits: insights.uniqueTraits,
   };
 }
 
