@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Text, Box } from "ink";
+import { Text, Box, useInput } from "ink";
 import { readInventory, writeInventory } from "../lib/inventory/store.ts";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
 import { ProjectSelector } from "./ProjectSelector.tsx";
@@ -36,7 +36,7 @@ interface Props {
 
 type Phase =
   | "scanning" | "picking-emails" | "recounting" | "selecting"
-  | "picking-agent" | "analyzing" | "done";
+  | "picking-agent" | "analyzing" | "analysis-failed" | "done";
 
 /**
  * Reusable pipeline component: scan → emails → recount → select → agent → analyze.
@@ -156,17 +156,13 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     setPhase("analyzing");
   }, []);
 
-  // Phase 3: Analyze
-  useEffect(() => {
-    if (phase !== "analyzing" || !resolvedAdapter) return;
-    async function run() {
-      try {
-        await analyzeProjects(selectedProjects, resolvedAdapter!, inventory!, {
-          noCache, dryRun,
-          onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
-        });
+  // Analysis failure state
+  const [failedProjects, setFailedProjects] = useState<Array<{ project: Project; error: string }>>([]);
 
-        // Generate profile insights (bio, highlights, narrative, skills)
+  function finishAnalysis() {
+    // Generate profile insights (bio, highlights, narrative, skills)
+    async function finish() {
+      try {
         if (!dryRun && inventory && !inventory.insights.bio) {
           setCurrent("Generating profile insights...");
           try {
@@ -177,14 +173,55 @@ export function Pipeline({ options, onComplete, onError }: Props) {
             }
           } catch { /* optional */ }
         }
-
         if (inventory) await writeInventory(inventory);
         setPhase("done");
         onComplete({ projects: selectedProjects, inventory: inventory!, adapter: resolvedAdapter! });
       } catch (err: any) { onError(err.message); }
     }
+    finish();
+  }
+
+  // Phase 3: Analyze
+  useEffect(() => {
+    if (phase !== "analyzing" || !resolvedAdapter) return;
+    async function run() {
+      try {
+        const result = await analyzeProjects(selectedProjects, resolvedAdapter!, inventory!, {
+          noCache, dryRun,
+          onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
+        });
+
+        if (result.failed.length > 0) {
+          setFailedProjects(result.failed);
+          setPhase("analysis-failed");
+          return;
+        }
+
+        finishAnalysis();
+      } catch (err: any) { onError(err.message); }
+    }
     run();
   }, [phase, selectedProjects, resolvedAdapter, noCache, dryRun, inventory]);
+
+  // Handle failure screen input
+  useInput((input, key) => {
+    if (phase !== "analysis-failed") return;
+    if (input === "r") {
+      // Retry failed projects with same adapter
+      setSelectedProjects(failedProjects.map((f) => f.project));
+      setFailedProjects([]);
+      setPhase("analyzing");
+    } else if (input === "s") {
+      // Skip failures, continue
+      finishAnalysis();
+    } else if (input === "a") {
+      // Switch agent and retry
+      setSelectedProjects(failedProjects.map((f) => f.project));
+      setFailedProjects([]);
+      setResolvedAdapter(null);
+      setPhase("picking-agent");
+    }
+  });
 
   // Render based on phase
   if (phase === "scanning") return (
@@ -204,6 +241,22 @@ export function Pipeline({ options, onComplete, onError }: Props) {
       {dryRun && <Text dimColor>(dry-run mode, no LLM calls)</Text>}
     </Box>
   );
+  if (phase === "analysis-failed") {
+    const analyzed = selectedProjects.length - failedProjects.length;
+    return (
+      <Box flexDirection="column">
+        <Text color="yellow" bold>Analysis complete with errors</Text>
+        <Text color="green">  {analyzed} analyzed successfully</Text>
+        <Text color="red">  {failedProjects.length} failed:</Text>
+        {failedProjects.slice(0, 10).map((f) => (
+          <Text key={f.project.id} dimColor>    {f.project.displayName}: {f.error.slice(0, 80)}</Text>
+        ))}
+        {failedProjects.length > 10 && <Text dimColor>    ...and {failedProjects.length - 10} more</Text>}
+        <Text> </Text>
+        <Text>[r] retry failed  [a] switch agent and retry  [s] skip and continue</Text>
+      </Box>
+    );
+  }
 
   return null; // done phase handled by parent via onComplete
 }

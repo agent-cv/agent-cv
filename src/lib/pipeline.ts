@@ -98,6 +98,12 @@ export async function recountAndTag(
 /**
  * Step 4: Analyze projects with AI agent.
  */
+export interface AnalysisResult {
+  analyzed: number;
+  failed: Array<{ project: Project; error: string }>;
+  skipped: number;
+}
+
 export async function analyzeProjects(
   projects: Project[],
   adapter: AgentAdapter,
@@ -107,7 +113,7 @@ export async function analyzeProjects(
     dryRun?: boolean;
     onProgress?: (done: number, total: number, current: string) => void;
   } = {}
-): Promise<void> {
+): Promise<AnalysisResult> {
   const { noCache = false, dryRun = false, onProgress } = options;
 
   const needsAnalysis = (p: Project) => {
@@ -119,8 +125,11 @@ export async function analyzeProjects(
   };
 
   const toAnalyze = noCache ? projects : projects.filter(needsAnalysis);
+  const skipped = projects.length - toAnalyze.length;
   const BATCH_SIZE = 3;
   let completed = 0;
+  let analyzedOk = 0;
+  const failed: Array<{ project: Project; error: string }> = [];
 
   for (let i = 0; i < toAnalyze.length; i += BATCH_SIZE) {
     const batch = toAnalyze.slice(i, i + BATCH_SIZE);
@@ -145,8 +154,9 @@ export async function analyzeProjects(
           analysis.analyzedAtCommit = project.lastCommit || "";
           analysis.promptVersion = PROMPT_VERSION;
           project.analysis = analysis;
+          analyzedOk++;
         } catch (err: any) {
-          console.error(`Warning: Failed to analyze ${project.displayName}: ${err.message}`);
+          failed.push({ project, error: err.message });
         }
       })
     );
@@ -155,6 +165,8 @@ export async function analyzeProjects(
     onProgress?.(completed, toAnalyze.length, "");
     await writeInventory(inventory);
   }
+
+  return { analyzed: analyzedOk, failed, skipped };
 }
 
 /**
