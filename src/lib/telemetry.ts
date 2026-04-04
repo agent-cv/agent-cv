@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-const POSTHOG_KEY = "phc_agent_cv_placeholder"; // TODO: replace with real key
+const POSTHOG_KEY = "phc_quQ9BNeTjYuEmQPfTXX7MaztQPovZgh5JBErxy9whJzL";
 const POSTHOG_HOST = "https://us.i.posthog.com";
 
 function getDataDir() {
