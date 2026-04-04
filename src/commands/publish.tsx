@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import { readInventory, writeInventory } from "../lib/inventory/store.ts";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
 import { writeConfig } from "../lib/config.ts";
@@ -28,7 +28,7 @@ type Phase =
   | "checking-auth" | "auth" | "polling"
   | "scanning" | "picking-emails" | "recounting" | "selecting"
   | "picking-agent" | "analyzing"
-  | "checking-public" | "publishing" | "done" | "error";
+  | "checking-public" | "confirming" | "publishing" | "done" | "error";
 
 interface Props {
   args?: string[];
@@ -217,36 +217,54 @@ export default function Publish({ args, options }: Props) {
     run();
   }, [phase, resolvedAdapter]);
 
-  // Step 5: Check public + publish
+  const [publicFlags, setPublicFlags] = useState<Record<string, boolean>>({});
+
+  // Step 5a: Check public repos
   useEffect(() => {
     if (phase !== "checking-public") return;
-    async function pub() {
+    async function check() {
       try {
         const included = (inventory?.projects || selectedProjects).filter((p) => p.included !== false);
         setTotalCount(included.length);
         setAnalyzedCount(included.filter((p) => p.analysis).length);
 
-        const publicFlags = await checkPublicRepos(included);
-        setPublicCount(Object.values(publicFlags).filter(Boolean).length);
-
-        setPhase("publishing");
-        const payload = sanitizeForPublish(inventory!, publicFlags, options.bio);
-
-        const result = await publishToApi(jwt, payload);
-        setResultUrl(result.url);
-        setPhase("done");
-        if (!options.noOpen) { try { exec(`open ${result.url}`); } catch {} }
-      } catch (e: any) {
-        if (e.message === "AUTH_EXPIRED") {
-          const { writeAuthToken } = await import("../lib/auth.ts");
-          await writeAuthToken({ jwt: "", username: "", obtainedAt: "" });
-          setError("Session expired. Run `agent-cv publish` again.");
-          setPhase("error");
-        } else { setError(e.message); setPhase("error"); }
-      }
+        const flags = await checkPublicRepos(included);
+        setPublicFlags(flags);
+        setPublicCount(Object.values(flags).filter(Boolean).length);
+        setPhase("confirming");
+      } catch (e: any) { setError(e.message); setPhase("error"); }
     }
-    pub();
+    check();
   }, [phase]);
+
+  // Step 5b: Confirmation — wait for y/n
+  useInput((input, key) => {
+    if (phase !== "confirming") return;
+    if (input === "y" || key.return) {
+      doPublish();
+    } else if (input === "n" || key.escape) {
+      setError("Cancelled.");
+      setPhase("error");
+    }
+  });
+
+  async function doPublish() {
+    setPhase("publishing");
+    try {
+      const payload = sanitizeForPublish(inventory!, publicFlags, options.bio);
+      const result = await publishToApi(jwt, payload);
+      setResultUrl(result.url);
+      setPhase("done");
+      if (!options.noOpen) { try { exec(`open ${result.url}`); } catch {} }
+    } catch (e: any) {
+      if (e.message === "AUTH_EXPIRED") {
+        const { writeAuthToken } = await import("../lib/auth.ts");
+        await writeAuthToken({ jwt: "", username: "", obtainedAt: "" });
+        setError("Session expired. Run `agent-cv publish` again.");
+        setPhase("error");
+      } else { setError(e.message); setPhase("error"); }
+    }
+  }
 
   // Render
   if (phase === "error") return <Text color="red">Error: {error}</Text>;
@@ -281,6 +299,17 @@ export default function Publish({ args, options }: Props) {
     </Box>
   );
   if (phase === "checking-public") return <Text color="gray">Checking repos...</Text>;
+  if (phase === "confirming") return (
+    <Box flexDirection="column" gap={1}>
+      <Text bold>Ready to publish your portfolio:</Text>
+      <Text color="gray">  {totalCount} projects will appear on your page</Text>
+      <Text color="gray">  {publicCount} with GitHub links (public repos only)</Text>
+      <Text color="gray">  {totalCount - publicCount} private (URLs hidden)</Text>
+      <Text color="gray">  Local paths, secrets, emails are stripped</Text>
+      <Text> </Text>
+      <Text>Publish to agent-cv.dev? <Text color="green" bold>(y)</Text> / <Text color="red">n</Text></Text>
+    </Box>
+  );
   if (phase === "publishing") return <Text color="gray">Publishing to agent-cv.dev...</Text>;
 
   return (
