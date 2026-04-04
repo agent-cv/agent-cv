@@ -91,6 +91,8 @@ export interface Inventory {
   projects: Project[];
   profile: InventoryProfile;
   insights: ProfileInsights;
+  /** Last used AI agent name (claude, codex, cursor, api) */
+  lastAgent?: string;
 }
 
 export interface AgentAdapter {

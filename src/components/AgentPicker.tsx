@@ -17,9 +17,10 @@ interface AgentOption {
 interface Props {
   onSubmit: (adapter: AgentAdapter, name: string) => void;
   onBack?: () => void;
+  defaultAgent?: string;
 }
 
-export function AgentPicker({ onSubmit, onBack }: Props) {
+export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
   const { exit } = useApp();
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -66,8 +67,9 @@ export function AgentPicker({ onSubmit, onBack }: Props) {
       );
 
       setAgents(options);
-      // Pre-select first available
-      const firstAvailable = options.findIndex((o) => o.available);
+      // Pre-select: saved agent if available, otherwise first available
+      const savedIdx = defaultAgent ? options.findIndex((o) => o.name === defaultAgent && o.available) : -1;
+      const firstAvailable = savedIdx >= 0 ? savedIdx : options.findIndex((o) => o.available);
       if (firstAvailable >= 0) setCursor(firstAvailable);
       setLoading(false);
     }

@@ -85,23 +85,26 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     async function scan() {
       try {
         await track("command_start", { command: "pipeline" });
+        const scanState = { count: 0, last: "", dir: "" };
         const result = await scanAndMerge(directory, {
           onProjectFound: (p, total) => {
+            scanState.count = total;
+            scanState.last = p.displayName;
             const now = Date.now();
             if (now - scanThrottle.current > 150) {
               scanThrottle.current = now;
-              setScanCount(total);
-              setLastFound(p.displayName);
+              setScanCount(scanState.count);
+              setLastFound(scanState.last);
+              if (scanState.dir) setScanDir(scanState.dir);
             }
           },
           onDirectoryEnter: (dir) => {
-            const now = Date.now();
-            if (now - scanThrottle.current > 150) {
-              scanThrottle.current = now;
-              setScanDir(dir.replace(directory, "").replace(/^\//, "") || ".");
-            }
+            scanState.dir = dir.replace(directory, "").replace(/^\//, "") || ".";
           },
         });
+        // Final update with latest values
+        setScanCount(scanState.count);
+        setLastFound(scanState.last);
 
         if (result.projects.length === 0) {
           onError(`No projects found in ${directory}`);
@@ -179,11 +182,15 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     setPhase("picking-agent");
   }, [agent]);
 
-  // Agent picker
-  const handleAgentPick = useCallback((adapter: AgentAdapter) => {
+  // Agent picker — save choice to inventory
+  const handleAgentPick = useCallback(async (adapter: AgentAdapter, name: string) => {
+    if (inventory) {
+      inventory.lastAgent = name;
+      await writeInventory(inventory);
+    }
     setResolvedAdapter(adapter);
     setPhase("analyzing");
-  }, []);
+  }, [inventory]);
 
   const handleAgentBack = useCallback(() => {
     setPhase("selecting");
@@ -287,7 +294,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
   if (phase === "picking-emails") return <EmailPicker emailCounts={emailCounts} preSelected={gitConfigEmails} onSubmit={handleEmailPick} />;
   if (phase === "recounting") return <Text color="yellow">Identifying your projects...</Text>;
   if (phase === "selecting") return <ProjectSelector projects={allProjects} scanRoot={directory} onSubmit={handleSelection} />;
-  if (phase === "picking-agent") return <AgentPicker onSubmit={handleAgentPick} onBack={handleAgentBack} />;
+  if (phase === "picking-agent") return <AgentPicker onSubmit={handleAgentPick} onBack={handleAgentBack} defaultAgent={inventory?.lastAgent} />;
   if (phase === "analyzing") {
     const statusIcon = (s: ProjectStatus) => {
       switch (s) {
