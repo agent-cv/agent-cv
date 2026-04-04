@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Text, Box, useInput, useStdout } from "ink";
+import { createHash } from "node:crypto";
 import { readInventory, writeInventory } from "../lib/inventory/store.ts";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
+import { generateProfileInsights } from "../lib/analysis/bio-generator.ts";
 import { ProjectSelector } from "./ProjectSelector.tsx";
 import { EmailPicker } from "./EmailPicker.tsx";
 import { AgentPicker } from "./AgentPicker.tsx";
@@ -214,7 +216,6 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     async function finish() {
       try {
         if (!dryRun && inventory) {
-          const { createHash } = await import("node:crypto");
           const analyzed = selectedProjects.filter((p) => p.analysis);
           const fingerprint = createHash("md5")
             .update(analyzed.map((p) => `${p.id}:${p.analysis?.analyzedAt}`).sort().join("|"))
@@ -223,7 +224,6 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           if (fingerprint !== inventory.insights._fingerprint) {
             setCurrent("generating profile insights...");
             try {
-              const { generateProfileInsights } = await import("../lib/analysis/bio-generator.ts");
               const insights = await generateProfileInsights(selectedProjects, resolvedAdapter!);
               if (insights) {
                 inventory.insights = { ...insights, _fingerprint: fingerprint };

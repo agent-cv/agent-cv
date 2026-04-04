@@ -141,7 +141,6 @@ export async function writeInventory(inventory: Inventory): Promise<void> {
   } catch (err: any) {
     // Clean up temp file on failure
     try {
-      const { unlink } = await import("node:fs/promises");
       await unlink(tmpPath);
     } catch {
       // ignore

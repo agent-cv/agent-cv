@@ -9,6 +9,7 @@ import {
   startDeviceFlow,
   pollForToken,
   publishToApi,
+  writeAuthToken,
   PendingError,
   SlowDownError,
 } from "../lib/auth.ts";
@@ -152,7 +153,6 @@ export default function Publish({ args, options }: Props) {
       if (!options.noOpen) { try { exec(`open ${result.url}`); } catch {} }
     } catch (e: any) {
       if (e.message === "AUTH_EXPIRED") {
-        const { writeAuthToken } = await import("../lib/auth.ts");
         await writeAuthToken({ jwt: "", username: "", obtainedAt: "" });
         setError("Session expired. Run `agent-cv publish` again.");
         setPhase("error");

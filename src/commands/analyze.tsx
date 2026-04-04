@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Text, Box } from "ink";
+import { resolve } from "node:path";
 import { z } from "zod/v4";
 import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
 import { buildProjectContext } from "../lib/analysis/context-builder.ts";
@@ -54,7 +55,6 @@ export default function Analyze({ args: [projectPath], options: { agent } }: Pro
 
         if (!project) {
           // Project not in inventory, create a minimal one for context building
-          const { resolve } = await import("node:path");
           const absPath = resolve(projectPath);
           project = {
             id: "temp",
