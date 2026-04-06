@@ -1,16 +1,15 @@
 import { readFile, writeFile, rename, mkdir, copyFile, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import type { Inventory, Project, InventoryProfile, ProfileInsights } from "../types.ts";
 import { INVENTORY_VERSION } from "../types.ts";
+import { getDataDir } from "../data-dir.ts";
 
 const INVENTORY_FILE = "inventory.json";
 const OLD_CONFIG_FILE = "config.json";
 
 function getBaseDir(): string {
-  if (process.env.AGENT_CV_DATA_DIR) return process.env.AGENT_CV_DATA_DIR;
-  return join(process.env.HOME || "~", ".agent-cv");
+  return getDataDir();
 }
 
 function getInventoryPath(): string {

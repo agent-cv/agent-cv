@@ -2,8 +2,15 @@ import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
-const CONFIG_DIR = process.env.AGENT_CV_DATA_DIR || join(process.env.HOME || "~", ".agent-cv");
-const AUTH_FILE = join(CONFIG_DIR, "auth.json");
+import { getDataDir } from "./data-dir.ts";
+
+function getConfigDir(): string {
+  return getDataDir();
+}
+
+function getAuthFile(): string {
+  return join(getConfigDir(), "auth.json");
+}
 
 const API_URL = process.env.AGENT_CV_API_URL || "https://agent-cv.dev";
 const GITHUB_CLIENT_ID = "Ov23liErP4pFLMnM3e1J";
@@ -16,7 +23,7 @@ export interface AuthToken {
 
 export async function readAuthToken(): Promise<AuthToken | null> {
   try {
-    const content = await readFile(AUTH_FILE, "utf-8");
+    const content = await readFile(getAuthFile(), "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
@@ -24,10 +31,11 @@ export async function readAuthToken(): Promise<AuthToken | null> {
 }
 
 export async function writeAuthToken(token: AuthToken): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true });
-  const tmpPath = join(CONFIG_DIR, `.auth.tmp.${randomBytes(4).toString("hex")}`);
+  const dir = getConfigDir();
+  await mkdir(dir, { recursive: true });
+  const tmpPath = join(dir, `.auth.tmp.${randomBytes(4).toString("hex")}`);
   await writeFile(tmpPath, JSON.stringify(token, null, 2), "utf-8");
-  await rename(tmpPath, AUTH_FILE);
+  await rename(tmpPath, getAuthFile());
 }
 
 /**

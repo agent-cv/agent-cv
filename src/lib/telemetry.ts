@@ -6,10 +6,8 @@ import { randomUUID } from "node:crypto";
 const POSTHOG_KEY = process.env.AGENT_CV_POSTHOG_KEY || "phc_quQ9BNeTjYuEmQPfTXX7MaztQPovZgh5JBErxy9whJzL";
 const POSTHOG_HOST = process.env.AGENT_CV_POSTHOG_HOST || "https://us.i.posthog.com";
 
-function getDataDir() {
-  if (process.env.AGENT_CV_DATA_DIR) return process.env.AGENT_CV_DATA_DIR;
-  return join(process.env.HOME || "~", ".agent-cv");
-}
+import { getDataDir, resetDataDir } from "./data-dir.ts";
+export { resetDataDir };
 
 interface TelemetryState {
   enabled?: boolean;

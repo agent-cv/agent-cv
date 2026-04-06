@@ -1,14 +1,8 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { describe, test, expect, beforeEach } from "bun:test";
+import { resetDataDir } from "../src/lib/data-dir.ts";
 
-beforeEach(async () => {
-  process.env.AGENT_CV_DATA_DIR = await mkdtemp(join(tmpdir(), "agent-cv-tel-"));
-});
-
-afterAll(() => {
-  delete process.env.AGENT_CV_DATA_DIR;
+beforeEach(() => {
+  resetDataDir();
 });
 
 describe("telemetry", () => {
@@ -43,7 +37,6 @@ describe("telemetry", () => {
   test("track is no-op when disabled", async () => {
     const { setTelemetryEnabled, track } = await import("../src/lib/telemetry.ts");
     await setTelemetryEnabled(false);
-    // Should not throw
     await track("test_event", { foo: "bar" });
   });
 });

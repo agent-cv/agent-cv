@@ -1,16 +1,6 @@
-import { describe, test, expect, mock, beforeEach, afterAll } from "bun:test";
+import { describe, test, expect, mock } from "bun:test";
 import { analyzeProjects, type ProjectStatus } from "../src/lib/pipeline.ts";
 import type { AgentAdapter, Project, ProjectAnalysis, ProjectContext, Inventory } from "../src/lib/types.ts";
-import { mkdtemp } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
-beforeEach(async () => {
-  process.env.AGENT_CV_DATA_DIR = await mkdtemp(join(tmpdir(), "agent-cv-pipeline-test-"));
-});
-afterAll(() => {
-  delete process.env.AGENT_CV_DATA_DIR;
-});
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {

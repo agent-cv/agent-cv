@@ -1,16 +1,5 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { readInventory, writeInventory } from "../src/lib/inventory/store.ts";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-
-beforeEach(async () => {
-  process.env.AGENT_CV_DATA_DIR = await mkdtemp(join(tmpdir(), "agent-cv-test-"));
-});
-
-afterAll(() => {
-  delete process.env.AGENT_CV_DATA_DIR;
-});
 
 describe("inventory profile (was config)", () => {
   test("readInventory returns default profile when no file", async () => {
