@@ -122,6 +122,47 @@ export function detectProjectGroups(projects: Project[], scanRoot: string): void
 }
 
 /**
+ * Transient error patterns that are worth retrying (rate limits, network, server errors).
+ */
+const TRANSIENT_PATTERNS = [
+  "429", "rate limit", "timeout", "timed out",
+  "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE",
+  "AbortError", "abort",
+  "500", "502", "503", "504",
+  "fetch failed", "network",
+];
+
+function isTransientError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return TRANSIENT_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+}
+
+/**
+ * Retry a function with exponential backoff. Only retries transient errors.
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  opts: { maxAttempts?: number; baseDelay?: number; onRetry?: (attempt: number, error: string) => void } = {}
+): Promise<T> {
+  const { maxAttempts = 3, baseDelay = 2000, onRetry } = opts;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const message = err.message || String(err);
+      if (attempt === maxAttempts || !isTransientError(message)) {
+        throw err;
+      }
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      onRetry?.(attempt, message);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("retryWithBackoff: unreachable");
+}
+
+/**
  * Step 4: Analyze projects with AI agent.
  */
 export interface AnalysisResult {
@@ -147,10 +188,14 @@ export async function analyzeProjects(
 
   const needsAnalysis = (p: Project) => {
     if (!p.analysis) return true;
-    if (!p.analysis.analyzedAtCommit) return true;
-    if (p.lastCommit && p.lastCommit !== p.analysis.analyzedAtCommit) return true;
     if (p.analysis.promptVersion !== PROMPT_VERSION) return true;
-    return false;
+    if (p.lastCommit) {
+      // Git project: re-analyze if new commits
+      return p.analysis.analyzedAtCommit !== p.lastCommit;
+    }
+    // Non-git project: re-analyze if files changed (count or dates)
+    const fingerprint = `files:${p.size?.files || 0}:${p.dateRange.end}`;
+    return p.analysis.analyzedAtCommit !== fingerprint;
   };
 
   const toAnalyze = noCache ? projects : projects.filter(needsAnalysis);
@@ -166,11 +211,26 @@ export async function analyzeProjects(
     onProjectStatus?.(p.id, "queued");
   }
   const BATCH_SIZE = 3;
+  const CIRCUIT_BREAKER_THRESHOLD = 3; // consecutive failures to trigger
   let completed = 0;
   let analyzedOk = 0;
   const failed: Array<{ project: Project; error: string }> = [];
+  let consecutiveFailures = 0;
+  let lastFailureMessage = "";
+  let circuitBroken = false;
 
   for (let i = 0; i < toAnalyze.length; i += BATCH_SIZE) {
+    // Circuit breaker: if adapter is consistently failing, stop early
+    if (circuitBroken) {
+      const remaining = toAnalyze.slice(i);
+      for (const project of remaining) {
+        failed.push({ project, error: lastFailureMessage });
+        onProjectStatus?.(project.id, "failed", `skipped: ${lastFailureMessage.slice(0, 40)}`);
+      }
+      completed += remaining.length;
+      break;
+    }
+
     const batch = toAnalyze.slice(i, i + BATCH_SIZE);
     onProgress?.(completed, toAnalyze.length, batch.map((p) => p.displayName).join(", "));
 
@@ -185,23 +245,55 @@ export async function analyzeProjects(
       continue;
     }
 
+    let batchSuccesses = 0;
     await Promise.all(
       batch.map(async (project) => {
         onProjectStatus?.(project.id, "analyzing");
         try {
-          const context = await buildProjectContext(project);
-          const analysis = await adapter.analyze(context);
-          analysis.analyzedAtCommit = project.lastCommit || "";
+          let context;
+          try {
+            context = await buildProjectContext(project);
+          } catch (ctxErr: any) {
+            failed.push({ project, error: `context build failed: ${ctxErr.message}` });
+            onProjectStatus?.(project.id, "failed", `context: ${ctxErr.message}`.slice(0, 60));
+            return;
+          }
+
+          const analysis = await retryWithBackoff(
+            () => adapter.analyze(context),
+            {
+              onRetry: (attempt, error) => {
+                onProjectStatus?.(project.id, "analyzing", `retry ${attempt + 1}/3... ${error.slice(0, 40)}`);
+              },
+            }
+          );
+          // For git projects: last commit hash. For non-git: file fingerprint.
+          analysis.analyzedAtCommit = project.lastCommit
+            || `files:${project.size?.files || 0}:${project.dateRange.end}`;
           analysis.promptVersion = PROMPT_VERSION;
           project.analysis = analysis;
           analyzedOk++;
+          batchSuccesses++;
           onProjectStatus?.(project.id, "done", analysis.summary?.slice(0, 60));
         } catch (err: any) {
           failed.push({ project, error: err.message });
           onProjectStatus?.(project.id, "failed", err.message.slice(0, 60));
+          lastFailureMessage = err.message;
         }
       })
     );
+
+    // Track consecutive batch failures for circuit breaker
+    if (batchSuccesses === 0) {
+      consecutiveFailures++;
+      if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+        circuitBroken = true;
+        onProgress?.(completed + batch.length, toAnalyze.length,
+          `Agent broken — ${consecutiveFailures} batches failed: ${lastFailureMessage.slice(0, 60)}`);
+      }
+    } else {
+      consecutiveFailures = 0;
+    }
 
     completed += batch.length;
     onProgress?.(completed, toAnalyze.length, "");
@@ -231,10 +323,13 @@ export async function enrichGitHubData(
 
   const BATCH = 10;
   let done = 0;
+  let rateLimited = false;
 
   for (let i = 0; i < toCheck.length; i += BATCH) {
+    if (rateLimited) break;
     const batch = toCheck.slice(i, i + BATCH);
     await Promise.all(batch.map(async (p) => {
+      if (rateLimited) return;
       try {
         const match = p.remoteUrl!.match(/github\.com\/([^/]+\/[^/]+)/);
         if (!match) return;
@@ -242,6 +337,12 @@ export async function enrichGitHubData(
           redirect: "follow",
           headers: { "User-Agent": "agent-cv" },
         });
+        // Detect rate limit exhaustion
+        const remaining = res.headers.get("x-ratelimit-remaining");
+        if (remaining === "0") {
+          rateLimited = true;
+          console.error("Warning: GitHub API rate limit reached, skipping remaining repos. Set GITHUB_TOKEN for higher limits.");
+        }
         if (res.status === 200) {
           const data = await res.json();
           p.stars = data.stargazers_count || 0;

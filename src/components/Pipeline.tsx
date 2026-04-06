@@ -214,17 +214,23 @@ export function Pipeline({ options, onComplete, onError }: Props) {
 
   // Analysis failure state
   const [failedProjects, setFailedProjects] = useState<Array<{ project: Project; error: string }>>([]);
+  // Track the full project set across retries so we don't lose successful results
+  const allSelectedRef = useRef<Project[]>([]);
+  // Track projects currently being analyzed (subset on retry)
+  const [projectsToAnalyze, setProjectsToAnalyze] = useState<Project[]>([]);
 
   function finishAnalysis() {
+    // Always use the full project set for post-analysis steps
+    const fullProjects = allSelectedRef.current.length > 0 ? allSelectedRef.current : selectedProjects;
     async function finish() {
       try {
         // Enrich with GitHub data (stars, isPublic)
         if (!dryRun) {
           setCurrent("fetching GitHub data...");
-          await enrichGitHubData(selectedProjects);
+          await enrichGitHubData(fullProjects);
           // Sync to inventory.projects
           if (inventory) {
-            const enriched = new Map(selectedProjects.map((p) => [p.id, p]));
+            const enriched = new Map(fullProjects.map((p) => [p.id, p]));
             for (const p of inventory.projects) {
               const ep = enriched.get(p.id);
               if (ep) { p.stars = ep.stars; p.isPublic = ep.isPublic; }
@@ -235,14 +241,14 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         // Calculate significance scores and assign tiers
         if (!dryRun && inventory) {
           const { assignTiers } = await import("../lib/discovery/significance.ts");
-          const tiers = assignTiers(selectedProjects);
-          // Write to both selectedProjects and inventory.projects by id
+          const tiers = assignTiers(fullProjects);
+          // Write to both fullProjects and inventory.projects by id
           const tiersById = new Map(tiers);
           for (const p of inventory.projects) {
             const info = tiersById.get(p.id);
             if (info) { p.significance = info.score; p.tier = info.tier; }
           }
-          for (const p of selectedProjects) {
+          for (const p of fullProjects) {
             const info = tiersById.get(p.id);
             if (info) { p.significance = info.score; p.tier = info.tier; }
           }
@@ -251,23 +257,25 @@ export function Pipeline({ options, onComplete, onError }: Props) {
 
         // Generate profile insights (bio, highlights, narrative, skills)
         if (!dryRun && inventory) {
-          const analyzed = selectedProjects.filter((p) => p.analysis);
+          const analyzed = fullProjects.filter((p) => p.analysis);
           const fingerprint = createHash("md5")
             .update(analyzed.map((p) => `${p.id}:${p.analysis?.analyzedAt}`).sort().join("|"))
             .digest("hex");
 
           if (fingerprint !== inventory.insights._fingerprint) {
             try {
-              const insights = await generateProfileInsights(selectedProjects, resolvedAdapter!, (step) => setCurrent(step));
+              const insights = await generateProfileInsights(fullProjects, resolvedAdapter!, (step) => setCurrent(step));
               if (insights) {
                 inventory.insights = { ...insights, _fingerprint: fingerprint };
               }
-            } catch { /* optional */ }
+            } catch (e: any) {
+              setCurrent(`Warning: insights failed — ${e.message}. Publishing with existing.`);
+            }
           }
         }
         if (inventory) await writeInventory(inventory);
         setPhase("done");
-        onComplete({ projects: selectedProjects, inventory: inventory!, adapter: resolvedAdapter! });
+        onComplete({ projects: fullProjects, inventory: inventory!, adapter: resolvedAdapter! });
       } catch (err: any) { onError(err.message); }
     }
     finish();
@@ -278,7 +286,14 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     if (phase !== "analyzing" || !resolvedAdapter) return;
     async function run() {
       try {
-        const result = await analyzeProjects(selectedProjects, resolvedAdapter!, inventory!, {
+        // On first run, projectsToAnalyze is empty — use selectedProjects
+        const toAnalyze = projectsToAnalyze.length > 0 ? projectsToAnalyze : selectedProjects;
+        // Save the full set on first analysis run
+        if (allSelectedRef.current.length === 0) {
+          allSelectedRef.current = selectedProjects;
+        }
+
+        const result = await analyzeProjects(toAnalyze, resolvedAdapter!, inventory!, {
           noCache, dryRun,
           onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
           onProjectStatus: (id, status, detail) => {
@@ -303,26 +318,29 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           return;
         }
 
+        // Clear retry state
+        setProjectsToAnalyze([]);
         finishAnalysis();
       } catch (err: any) { onError(err.message); }
     }
     run();
-  }, [phase, selectedProjects, resolvedAdapter, noCache, dryRun, inventory]);
+  }, [phase, selectedProjects, projectsToAnalyze, resolvedAdapter, noCache, dryRun, inventory]);
 
   // Handle failure screen input
   useInput((input, key) => {
     if (phase !== "analysis-failed") return;
     if (input === "r") {
-      // Retry failed projects with same adapter
-      setSelectedProjects(failedProjects.map((f) => f.project));
+      // Retry only failed projects, keep successful results intact
+      setProjectsToAnalyze(failedProjects.map((f) => f.project));
       setFailedProjects([]);
       setPhase("analyzing");
     } else if (input === "s") {
-      // Skip failures, continue
+      // Skip failures, continue with whatever succeeded
+      setProjectsToAnalyze([]);
       finishAnalysis();
     } else if (input === "a") {
-      // Switch agent and retry
-      setSelectedProjects(failedProjects.map((f) => f.project));
+      // Switch agent and retry failed projects only
+      setProjectsToAnalyze(failedProjects.map((f) => f.project));
       setFailedProjects([]);
       setResolvedAdapter(null);
       setPhase("picking-agent");
@@ -341,7 +359,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
       <Text color="yellow">Scanning {directory}...</Text>
       {scanCount > 0 && (
         <Text>
-          <Text color="green">Found {scanCount}{prevProjectCount > 0 ? `/${prevProjectCount}` : ""} project{scanCount !== 1 ? "s" : ""}</Text>
+          <Text color="green">Found {scanCount} project{scanCount !== 1 ? "s" : ""}{prevProjectCount > 0 ? <Text color="gray"> (was {prevProjectCount})</Text> : ""}</Text>
           {lastFound ? <Text dimColor> — {lastFound}</Text> : null}
         </Text>
       )}

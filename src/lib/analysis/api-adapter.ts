@@ -84,8 +84,24 @@ export class APIAdapter implements AgentAdapter {
     return this.callOpenAI(config, prompt);
   }
 
+  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      return response;
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        throw new Error("API request timed out after 120s");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async callOpenAIRaw(config: { apiKey: string; baseUrl: string; model: string }, prompt: string): Promise<string> {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    const response = await this.fetchWithTimeout(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
       body: JSON.stringify({ model: config.model, messages: [{ role: "user", content: prompt }], temperature: 0.3, max_tokens: 2048 }),
@@ -96,7 +112,7 @@ export class APIAdapter implements AgentAdapter {
   }
 
   private async callAnthropicRaw(config: { apiKey: string; baseUrl: string; model: string }, prompt: string): Promise<string> {
-    const response = await fetch(`${config.baseUrl}/messages`, {
+    const response = await this.fetchWithTimeout(`${config.baseUrl}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({ model: config.model, max_tokens: 2048, messages: [{ role: "user", content: prompt }] }),
@@ -110,7 +126,7 @@ export class APIAdapter implements AgentAdapter {
     config: { apiKey: string; baseUrl: string; model: string },
     prompt: string
   ): Promise<ProjectAnalysis> {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    const response = await this.fetchWithTimeout(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -138,7 +154,7 @@ export class APIAdapter implements AgentAdapter {
     config: { apiKey: string; baseUrl: string; model: string },
     prompt: string
   ): Promise<ProjectAnalysis> {
-    const response = await fetch(`${config.baseUrl}/messages`, {
+    const response = await this.fetchWithTimeout(`${config.baseUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

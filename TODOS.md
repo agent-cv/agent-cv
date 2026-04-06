@@ -20,6 +20,13 @@ Add a `version` field to inventory.json and a migration function that runs on lo
 
 Show estimated API cost before running analysis: "Analyzing 30 projects will use ~120K tokens (~$0.36). Proceed?" Only relevant for API mode (agent delegation has no per-token costs).
 
+## GitHub API token support
+**Priority:** P2 | **Effort:** S (human: ~0.5 day / CC: ~5 min) | **Depends on:** none
+
+Support `GITHUB_TOKEN` env var for authenticated GitHub API requests (5000 req/hour vs 60 unauthenticated). Pass as `Authorization: Bearer` header in `enrichGitHubData()`. Rate limit detection already exists (added with pipeline error handling), this just raises the ceiling.
+
+**Why:** Users with 60+ repos hit the unauthenticated rate limit and get partial data. The rate limit detection stops early instead of failing silently, but token support would prevent hitting the limit at all.
+
 ## Prompt injection defense for team mode
 **Priority:** P3 | **Effort:** M (human: ~3 days / CC: ~30 min) | **Depends on:** team mode (v2+)
 
