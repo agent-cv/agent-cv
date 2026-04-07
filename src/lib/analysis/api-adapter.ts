@@ -1,66 +1,29 @@
 import type { AgentAdapter, ProjectAnalysis, ProjectContext } from "../types.ts";
+import { resolveApiConfig, readCredentials, type SavedCredentials } from "../credentials.ts";
 
 /**
  * API adapter for LLM analysis.
  * Works with OpenRouter, OpenAI, Anthropic, and any OpenAI-compatible endpoint.
  *
- * Resolution order for API key:
- * 1. AGENT_CV_API_KEY env var
- * 2. OPENROUTER_API_KEY
- * 3. ANTHROPIC_API_KEY
- * 4. OPENAI_API_KEY
- *
- * Resolution order for base URL:
- * 1. AGENT_CV_BASE_URL env var
- * 2. Inferred from which API key was found
+ * Resolution order: env vars → saved credentials (~/.agent-cv/credentials.json)
  */
 export class APIAdapter implements AgentAdapter {
   name = "api";
+  private savedCredentials: SavedCredentials | undefined;
 
-  private getConfig(): { apiKey: string; baseUrl: string; model: string } | null {
-    const agentCvKey = process.env.AGENT_CV_API_KEY;
-    const agentCvUrl = process.env.AGENT_CV_BASE_URL;
-
-    if (agentCvKey && agentCvUrl) {
-      return { apiKey: agentCvKey, baseUrl: agentCvUrl, model: process.env.AGENT_CV_MODEL || "gpt-4o" };
+  private async getConfig(): Promise<{ apiKey: string; baseUrl: string; model: string } | null> {
+    if (this.savedCredentials === undefined) {
+      this.savedCredentials = await readCredentials();
     }
-
-    const openRouterKey = process.env.OPENROUTER_API_KEY;
-    if (openRouterKey) {
-      return {
-        apiKey: openRouterKey,
-        baseUrl: "https://openrouter.ai/api/v1",
-        model: "anthropic/claude-sonnet-4",
-      };
-    }
-
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (anthropicKey) {
-      return {
-        apiKey: anthropicKey,
-        baseUrl: "https://api.anthropic.com/v1",
-        model: "claude-sonnet-4-20250514",
-      };
-    }
-
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (openaiKey) {
-      return {
-        apiKey: openaiKey,
-        baseUrl: "https://api.openai.com/v1",
-        model: "gpt-4o",
-      };
-    }
-
-    return null;
+    return resolveApiConfig(this.savedCredentials);
   }
 
   async isAvailable(): Promise<boolean> {
-    return this.getConfig() !== null;
+    return (await this.getConfig()) !== null;
   }
 
   async analyze(context: ProjectContext): Promise<ProjectAnalysis> {
-    const config = this.getConfig();
+    const config = await this.getConfig();
     if (!config) {
       throw new Error("No API key found. Set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.");
     }
