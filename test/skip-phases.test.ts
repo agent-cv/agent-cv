@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { shouldSkipPhases } from "../src/lib/pipeline.ts";
-import type { Inventory, Project } from "../src/lib/types.ts";
+import { shouldSkipPhases } from "@agent-cv/core/src/pipeline.ts";
+import type { Inventory, Project } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {

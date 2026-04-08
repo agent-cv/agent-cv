@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Text, useInput, useApp } from "ink";
-import { ClaudeAdapter } from "../lib/analysis/claude-adapter.ts";
-import { CodexAdapter } from "../lib/analysis/codex-adapter.ts";
-import { CursorAdapter } from "../lib/analysis/cursor-adapter.ts";
-import { OpenCodeAdapter } from "../lib/analysis/opencode-adapter.ts";
-import { OllamaAdapter } from "../lib/analysis/ollama-adapter.ts";
+import { ClaudeAdapter } from "@agent-cv/core/src/analysis/claude-adapter.ts";
+import { CodexAdapter } from "@agent-cv/core/src/analysis/codex-adapter.ts";
+import { CursorAdapter } from "@agent-cv/core/src/analysis/cursor-adapter.ts";
+import { OpenCodeAdapter } from "@agent-cv/core/src/analysis/opencode-adapter.ts";
+import { OllamaAdapter } from "@agent-cv/core/src/analysis/ollama-adapter.ts";
 
 const RECOMMENDED_MODEL = "qwen2.5-coder:3b";
-import { APIAdapter } from "../lib/analysis/api-adapter.ts";
-import { writeCredentials, type SavedCredentials } from "../lib/credentials.ts";
-import type { AgentAdapter } from "../lib/types.ts";
+import { APIAdapter } from "@agent-cv/core/src/analysis/api-adapter.ts";
+import { writeCredentials, type SavedCredentials } from "@agent-cv/core/src/credentials.ts";
+import type { AgentAdapter } from "@agent-cv/core/src/types.ts";
 
 interface AgentOption {
   name: string;

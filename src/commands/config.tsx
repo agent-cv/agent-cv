@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Text, Box, useInput, useApp } from "ink";
 import { z } from "zod/v4";
-import { readInventory, writeInventory } from "../lib/inventory/store.ts";
-import type { Inventory } from "../lib/types.ts";
-import { isTelemetryEnabled, setTelemetryEnabled } from "../lib/telemetry.ts";
+import { readInventory, writeInventory } from "@agent-cv/core/src/inventory/store.ts";
+import type { Inventory } from "@agent-cv/core/src/types.ts";
+import { isTelemetryEnabled, setTelemetryEnabled } from "@agent-cv/core/src/telemetry.ts";
 import { Shimmer } from "../components/Shimmer.tsx";
 
 export const options = z.object({});

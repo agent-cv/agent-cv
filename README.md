@@ -27,6 +27,8 @@ agent-cv stats
 agent-cv diff ~/Projects
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development (Bun, tests, workspace layout).
+
 ## How it works
 
 ```

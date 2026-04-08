@@ -1,4 +1,5 @@
 import type { AgentAdapter, ProjectAnalysis, ProjectContext } from "../types.ts";
+import { parseStructuredAnalysisResponse } from "./api-parse.ts";
 
 /**
  * Codex CLI adapter.
@@ -44,7 +45,7 @@ export class CodexAdapter implements AgentAdapter {
       return { summary: stdout.trim(), techStack: [], contributions: [], analyzedAt: new Date().toISOString(), analyzedBy: "codex" };
     }
 
-    return parseResponse(stdout);
+    return parseStructuredAnalysisResponse(stdout, "codex");
   }
 }
 
@@ -73,19 +74,4 @@ function buildPrompt(context: ProjectContext): string {
   if (context.dependencies) parts.push("DEPS:", context.dependencies.slice(0, 1000), "");
   if (context.recentCommits) parts.push("COMMITS:", context.recentCommits.slice(0, 1000));
   return parts.join("\n");
-}
-
-function parseResponse(raw: string): ProjectAnalysis {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in Codex response");
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  return {
-    summary: parsed.summary || "",
-    techStack: Array.isArray(parsed.techStack) ? parsed.techStack : [],
-    contributions: Array.isArray(parsed.contributions) ? parsed.contributions : [],
-    impactScore: typeof parsed.impactScore === "number" ? Math.min(10, Math.max(1, parsed.impactScore)) : undefined,
-    analyzedAt: new Date().toISOString(),
-    analyzedBy: "codex",
-  };
 }

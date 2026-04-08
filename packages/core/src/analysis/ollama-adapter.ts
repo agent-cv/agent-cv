@@ -1,4 +1,5 @@
 import type { AgentAdapter, ProjectAnalysis, ProjectContext } from "../types.ts";
+import { parseOllamaAnalysisResponse } from "./api-parse.ts";
 
 const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 // Preferred models in priority order — code-specialized small models first
@@ -146,7 +147,7 @@ export class OllamaAdapter implements AgentAdapter {
       return { summary: content, techStack: [], contributions: [], analyzedAt: new Date().toISOString(), analyzedBy: "ollama" };
     }
 
-    return parseResponse(content);
+    return parseOllamaAnalysisResponse(content);
   }
 }
 
@@ -207,24 +208,4 @@ function buildPrompt(context: ProjectContext): string {
   parts.push("Return ONLY the JSON object. No markdown, no explanation.");
 
   return parts.join("\n");
-}
-
-function parseResponse(raw: string): ProjectAnalysis {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in Ollama response");
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  const analysis: ProjectAnalysis = {
-    summary: parsed.summary || "",
-    techStack: Array.isArray(parsed.techStack) ? parsed.techStack : [],
-    contributions: Array.isArray(parsed.contributions) ? parsed.contributions : [],
-    impactScore: typeof parsed.impactScore === "number" ? Math.min(10, Math.max(1, parsed.impactScore)) : undefined,
-    analyzedAt: new Date().toISOString(),
-    analyzedBy: "ollama",
-  };
-
-  if (!analysis.summary) throw new Error("Analysis has empty summary");
-  if (analysis.techStack.length === 0) throw new Error("Analysis has empty techStack");
-
-  return analysis;
 }

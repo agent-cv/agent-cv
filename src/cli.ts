@@ -2,10 +2,11 @@
 import { Command } from "commander";
 import { render } from "ink";
 import React from "react";
+import { PACKAGE_VERSION } from "./version.ts";
 
 const program = new Command()
   .name("agent-cv")
-  .version("0.1.0")
+  .version(PACKAGE_VERSION)
   .description("Generate technical CVs from your local project directories using AI");
 
 // generate

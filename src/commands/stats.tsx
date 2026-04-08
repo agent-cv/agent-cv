@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Text, Box } from "ink";
-import { readInventory } from "../lib/inventory/store.ts";
-import { scanAndMerge } from "../lib/pipeline.ts";
-import type { Inventory } from "../lib/types.ts";
+import { readInventory } from "@agent-cv/core/src/inventory/store.ts";
+import { scanAndMerge } from "@agent-cv/core/src/pipeline.ts";
+import type { Inventory } from "@agent-cv/core/src/types.ts";
 
 interface Props {
   args?: string[];

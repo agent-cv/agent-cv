@@ -1,5 +1,6 @@
 import type { AgentAdapter, ProjectAnalysis, ProjectContext } from "../types.ts";
 import { resolveApiConfig, readCredentials, type SavedCredentials } from "../credentials.ts";
+import { parseApiAnalysisResponse } from "./api-parse.ts";
 
 /**
  * API adapter for LLM analysis.
@@ -110,7 +111,7 @@ export class APIAdapter implements AgentAdapter {
 
     const json = await response.json() as any;
     const content = json.choices?.[0]?.message?.content || "";
-    return parseResponse(content);
+    return parseApiAnalysisResponse(content);
   }
 
   private async callAnthropic(
@@ -138,7 +139,7 @@ export class APIAdapter implements AgentAdapter {
 
     const json = await response.json() as any;
     const content = json.content?.[0]?.text || "";
-    return parseResponse(content);
+    return parseApiAnalysisResponse(content);
   }
 }
 
@@ -180,24 +181,4 @@ function buildPrompt(context: ProjectContext): string {
   if (context.recentCommits) parts.push("=== RECENT COMMITS ===", context.recentCommits, "");
 
   return parts.join("\n");
-}
-
-function parseResponse(raw: string): ProjectAnalysis {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in API response");
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  const analysis: ProjectAnalysis = {
-    summary: parsed.summary || "",
-    techStack: Array.isArray(parsed.techStack) ? parsed.techStack : [],
-    contributions: Array.isArray(parsed.contributions) ? parsed.contributions : [],
-    impactScore: typeof parsed.impactScore === "number" ? Math.min(10, Math.max(1, parsed.impactScore)) : undefined,
-    analyzedAt: new Date().toISOString(),
-    analyzedBy: "api",
-  };
-
-  if (!analysis.summary) throw new Error("Analysis has empty summary");
-  if (analysis.techStack.length === 0) throw new Error("Analysis has empty techStack");
-
-  return analysis;
 }

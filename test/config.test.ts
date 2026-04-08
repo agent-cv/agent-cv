@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { readInventory, writeInventory } from "../src/lib/inventory/store.ts";
+import { readInventory, writeInventory } from "@agent-cv/core/src/inventory/store.ts";
 
 describe("inventory profile (was config)", () => {
   test("readInventory returns default profile when no file", async () => {

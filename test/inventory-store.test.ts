@@ -1,8 +1,8 @@
 import { describe, test, expect, beforeEach } from "bun:test";
-import { readInventory, writeInventory, mergeInventory } from "../src/lib/inventory/store.ts";
+import { readInventory, writeInventory, mergeInventory } from "@agent-cv/core/src/inventory/store.ts";
 import { rm, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Project, Inventory } from "../src/lib/types.ts";
+import type { Project, Inventory } from "@agent-cv/core/src/types.ts";
 
 // Use a temp directory to avoid polluting real ~/.agent-cv/
 const TEST_DIR = join(import.meta.dir, "fixtures", "inventory-test");

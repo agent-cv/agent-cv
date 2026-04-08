@@ -1,0 +1,111 @@
+import { scanDirectory } from "../discovery/scanner.ts";
+import {
+  readInventory,
+  writeInventory,
+  mergeInventory,
+} from "../inventory/store.ts";
+import { resolve } from "node:path";
+import type { Inventory, Project } from "../types.ts";
+import { GitHubClient } from "../discovery/github-client.ts";
+import { enrichUpstreamPullRequestCounts } from "../discovery/github-upstream.ts";
+import { detectGitHubUsername } from "../discovery/github-scanner.ts";
+import { withPipelineTiming } from "../telemetry.ts";
+
+export interface ScanCallbacks {
+  onProjectFound?: (project: Project, total: number) => void;
+  onDirectoryEnter?: (dir: string) => void;
+}
+
+export interface ScanMergeOptions {
+  /** Skip GitHub GET /repos enrichment (e.g. dry-run). Fork/stars/public come from API in one call. */
+  skipGitHubEnrich?: boolean;
+}
+
+/**
+ * Step 1: Scan directory and merge with existing inventory.
+ * Enriches local github.com remotes with one batched GET /repos pass (stars, visibility, fork).
+ */
+export async function scanAndMerge(
+  directory: string,
+  callbacks?: ScanCallbacks,
+  options?: ScanMergeOptions
+): Promise<{ inventory: Inventory; projects: Project[] }> {
+  const scanResult = await withPipelineTiming("scan_filesystem", () =>
+    scanDirectory(directory, {
+      verbose: false,
+      emails: [],
+      onProjectFound: callbacks?.onProjectFound,
+      onDirectoryEnter: callbacks?.onDirectoryEnter,
+    })
+  );
+
+  const absDirectory = resolve(directory);
+  const existingInventory = await readInventory();
+  const merged = mergeInventory(existingInventory, scanResult.projects, absDirectory);
+
+  const projects = merged.projects.filter((p) => !p.tags.includes("removed"));
+  if (!options?.skipGitHubEnrich) {
+    const ghClient = await GitHubClient.create();
+    await withPipelineTiming("github_enrich_rest", () => enrichGitHubData(projects, ghClient));
+    const ghLogin =
+      merged.profile.socials?.github?.trim() || detectGitHubUsername(merged) || undefined;
+    await withPipelineTiming("github_upstream_prs", () =>
+      enrichUpstreamPullRequestCounts(projects, ghClient, ghLogin)
+    );
+  }
+  await writeInventory(merged);
+
+  return { inventory: merged, projects };
+}
+
+/**
+ * Enrich local projects with GitHub REST data (stars, visibility, fork) via GET /repos/{owner}/{repo}.
+ * Single request per repo — same endpoint previously split across scan (fork) and post-analysis (stars).
+ * Uses centralized GitHubClient for auth and rate limit tracking.
+ * Batches API calls 10 at a time. Includes cloud-listed repos so fork `parent` is filled in.
+ */
+export async function enrichGitHubData(
+  projects: Project[],
+  client?: GitHubClient,
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
+  const toCheck = projects.filter((p) => p.remoteUrl?.includes("github.com"));
+  if (toCheck.length === 0) return;
+
+  const ghClient = client ?? (await GitHubClient.create());
+  const BATCH = 10;
+  let done = 0;
+
+  for (let i = 0; i < toCheck.length; i += BATCH) {
+    if (ghClient.isRateLimited) {
+      console.error(
+        "Warning: GitHub API rate limit reached, skipping remaining repos. Set GITHUB_TOKEN or save githubToken in credentials.json for higher limits."
+      );
+      break;
+    }
+    const batch = toCheck.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (p) => {
+      if (ghClient.isRateLimited) return;
+      try {
+        const match = p.remoteUrl!.match(/github\.com\/([^/]+\/[^/]+)/);
+        if (!match) return;
+        const data = await ghClient.get<{
+          stargazers_count: number;
+          private: boolean;
+          fork: boolean;
+          parent?: { full_name: string };
+        }>(`/repos/${match[1]}`);
+        p.stars = data.stargazers_count || 0;
+        p.isPublic = !data.private;
+        p.isFork = data.fork;
+        if (data.parent?.full_name) {
+          p.githubParentFullName = data.parent.full_name;
+        }
+      } catch {
+        // Non-critical: skip this repo's enrichment
+      }
+    }));
+    done += batch.length;
+    onProgress?.(done, toCheck.length);
+  }
+}

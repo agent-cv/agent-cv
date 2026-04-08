@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Text, Box, useInput, useApp } from "ink";
-import { MarkdownRenderer } from "../lib/output/markdown-renderer.ts";
+import { MarkdownRenderer } from "@agent-cv/core/src/output/markdown-renderer.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
-import { readInventory } from "../lib/inventory/store.ts";
-import { readAuthToken, startDeviceFlow, pollForToken, publishToApi, PendingError, SlowDownError } from "../lib/auth.ts";
-import { sanitizeForPublish } from "../lib/publish.ts";
+import { readInventory } from "@agent-cv/core/src/inventory/store.ts";
+import { readAuthToken, startDeviceFlow, pollForToken, publishToApi, PendingError, SlowDownError } from "@agent-cv/core/src/auth.ts";
+import { sanitizeForPublish } from "@agent-cv/core/src/publish.ts";
 import { PublishResult } from "../components/PublishResult.tsx";
 import { exec } from "node:child_process";
 

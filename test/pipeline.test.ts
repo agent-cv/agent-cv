@@ -1,6 +1,6 @@
 import { describe, test, expect, mock } from "bun:test";
-import { analyzeProjects, type ProjectStatus } from "../src/lib/pipeline.ts";
-import type { AgentAdapter, Project, ProjectAnalysis, ProjectContext, Inventory } from "../src/lib/types.ts";
+import { analyzeProjects, type ProjectStatus } from "@agent-cv/core/src/pipeline.ts";
+import type { AgentAdapter, Project, ProjectAnalysis, ProjectContext, Inventory } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {

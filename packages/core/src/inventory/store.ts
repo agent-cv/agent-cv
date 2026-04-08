@@ -5,6 +5,8 @@ import type { Inventory, Project, InventoryProfile, ProfileInsights } from "../t
 import { INVENTORY_VERSION } from "../types.ts";
 import { normalizeGitUrl } from "../discovery/git-metadata.ts";
 import { getDataDir } from "../data-dir.ts";
+import { parseInventoryJson } from "./inventory-schema.ts";
+import { ZodError } from "zod";
 
 const INVENTORY_FILE = "inventory.json";
 const OLD_CONFIG_FILE = "config.json";
@@ -79,20 +81,31 @@ export async function readInventory(): Promise<Inventory> {
 
   try {
     const content = await readFile(path, "utf-8");
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(content) as unknown;
 
-    // Basic validation
-    if (!parsed.version || !Array.isArray(parsed.projects)) {
-      throw new Error("Invalid inventory structure");
+    // Ensure new fields exist (upgrade from older inventory format) before Zod
+    const raw =
+      typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
+    if (raw) {
+      if (!raw.profile) raw.profile = defaultProfile();
+      if (!raw.insights) raw.insights = {};
     }
 
-    // Ensure new fields exist (upgrade from older inventory format)
-    if (!parsed.profile) parsed.profile = defaultProfile();
-    if (!parsed.insights) parsed.insights = {};
-
-    inventory = parsed as Inventory;
+    inventory = parseInventoryJson(raw ?? parsed);
   } catch (err: any) {
     if (err.code === "ENOENT") {
+      inventory = emptyInventory();
+    } else if (err instanceof ZodError) {
+      console.error(
+        `Warning: Inventory failed validation (${err.message}). Creating fresh inventory.`
+      );
+      try {
+        const backupPath = path + ".backup." + Date.now();
+        await copyFile(path, backupPath);
+        console.error(`  Backup saved to: ${backupPath}`);
+      } catch {
+        // Can't backup, just continue
+      }
       inventory = emptyInventory();
     } else {
       console.error(
@@ -235,6 +248,8 @@ export function mergeInventory(
     profile: existing.profile || defaultProfile(),
     insights: existing.insights || {},
     lastAgent: existing.lastAgent,
+    githubExtras: existing.githubExtras,
+    publishedPackages: existing.publishedPackages,
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { scanDirectory } from "../src/lib/discovery/scanner.ts";
+import { scanDirectory } from "@agent-cv/core/src/discovery/scanner.ts";
 import { writeFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 

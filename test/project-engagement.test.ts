@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import type { Project } from "../src/lib/types.ts";
+import type { Project } from "@agent-cv/core/src/types.ts";
 import {
   isPersonalForkLine,
   isStudiedClone,
@@ -8,7 +8,7 @@ import {
   studiedProjectsByYear,
   openSourceContributionsByYear,
   PERSONAL_FORK_AUTHOR_COMMIT_THRESHOLD,
-} from "../src/lib/discovery/project-engagement.ts";
+} from "@agent-cv/core/src/discovery/project-engagement.ts";
 
 function base(overrides: Partial<Project> = {}): Project {
   return {

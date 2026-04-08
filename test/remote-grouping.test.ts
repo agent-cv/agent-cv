@@ -3,8 +3,8 @@ import {
   parseGitRemote,
   repoStemForGrouping,
   detectProjectGroupsFromRemotes,
-} from "../src/lib/discovery/remote-grouping.ts";
-import type { Project } from "../src/lib/types.ts";
+} from "@agent-cv/core/src/discovery/remote-grouping.ts";
+import type { Project } from "@agent-cv/core/src/types.ts";
 
 function baseProject(overrides: Partial<Project> = {}): Project {
   return {

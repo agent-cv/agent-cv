@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { detectForgottenGems } from "../src/lib/discovery/forgotten-gems.ts";
-import type { Project } from "../src/lib/types.ts";
+import { detectForgottenGems } from "@agent-cv/core/src/discovery/forgotten-gems.ts";
+import type { Project } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {

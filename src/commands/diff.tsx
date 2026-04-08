@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Text, Box } from "ink";
 import { z } from "zod/v4";
 import { resolve } from "node:path";
-import { readInventory } from "../lib/inventory/store.ts";
-import { scanAndMerge } from "../lib/pipeline.ts";
-import type { Project } from "../lib/types.ts";
+import { readInventory } from "@agent-cv/core/src/inventory/store.ts";
+import { scanAndMerge } from "@agent-cv/core/src/pipeline.ts";
+import type { Project } from "@agent-cv/core/src/types.ts";
 
 export const args = z.tuple([
   z.string().describe("Directory to scan and compare against last inventory"),

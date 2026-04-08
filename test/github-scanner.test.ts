@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { detectGitHubUsername } from "../src/lib/discovery/github-scanner.ts";
-import type { Inventory } from "../src/lib/types.ts";
+import { detectGitHubUsername } from "@agent-cv/core/src/discovery/github-scanner.ts";
+import type { Inventory } from "@agent-cv/core/src/types.ts";
 
 function makeInventory(projects: Array<{ remoteUrl?: string }>): Inventory {
   return {

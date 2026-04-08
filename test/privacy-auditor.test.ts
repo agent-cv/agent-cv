@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { scanForSecrets } from "../src/lib/discovery/privacy-auditor.ts";
+import { scanForSecrets } from "@agent-cv/core/src/discovery/privacy-auditor.ts";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 

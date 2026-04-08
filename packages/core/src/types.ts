@@ -3,6 +3,8 @@
  * These are framework-agnostic — no React/Ink imports here.
  */
 
+import type { PublishedPackage } from "./discovery/package-registries.ts";
+
 export interface Project {
   id: string;
   path: string;
@@ -149,6 +151,19 @@ export interface InventoryProfile {
   socials?: Socials;
 }
 
+/** GitHub scan extras persisted on inventory (starred repos, public activity). */
+export interface InventoryGitHubExtras {
+  starredRepos: Array<{
+    name: string;
+    description: string | null;
+    language: string | null;
+    stars: number;
+    url: string;
+  }>;
+  contributions: Array<{ repo: string; type: string; date: string }>;
+  avatarUrl?: string;
+}
+
 export interface Inventory {
   version: string;
   lastScan: string;
@@ -158,6 +173,10 @@ export interface Inventory {
   insights: ProfileInsights;
   /** Last used AI agent name (claude, codex, cursor, api) */
   lastAgent?: string;
+  /** Optional data from GitHub cloud scan (not part of core inventory schema version). */
+  githubExtras?: InventoryGitHubExtras;
+  /** Packages found on registries for the GitHub user (best-effort). */
+  publishedPackages?: PublishedPackage[];
 }
 
 export interface AgentAdapter {

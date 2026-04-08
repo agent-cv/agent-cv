@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import { relative, dirname, resolve, basename } from "node:path";
-import type { Project } from "../lib/types.ts";
-import { PROMPT_VERSION } from "../lib/types.ts";
+import type { Project } from "@agent-cv/core/src/types.ts";
+import { PROMPT_VERSION } from "@agent-cv/core/src/types.ts";
 
 interface Props {
   projects: Project[];

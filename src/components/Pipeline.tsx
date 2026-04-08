@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useMachine } from "@xstate/react";
 import { Text, Box, useInput, useStdout } from "ink";
 import { createHash } from "node:crypto";
 import { resolve as resolvePath } from "node:path";
-import { readInventory, writeInventory } from "../lib/inventory/store.ts";
-import { resolveAdapter } from "../lib/analysis/resolve-adapter.ts";
-import { generateProfileInsights } from "../lib/analysis/bio-generator.ts";
+import { readInventory, writeInventory } from "@agent-cv/core/src/inventory/store.ts";
+import { resolveAdapter } from "@agent-cv/core/src/analysis/resolve-adapter.ts";
+import { generateProfileInsights } from "@agent-cv/core/src/analysis/bio-generator.ts";
 import { ProjectSelector } from "./ProjectSelector.tsx";
 import { EmailPicker } from "./EmailPicker.tsx";
 import { AgentPicker } from "./AgentPicker.tsx";
@@ -17,13 +18,17 @@ import {
   detectProjectGroups,
   detectProjectGroupsFromRemotes,
   type ProjectStatus,
-} from "../lib/pipeline.ts";
-import type { Project, Inventory, AgentAdapter } from "../lib/types.ts";
-import { markNoticeSeen, track, trackPipelineStep } from "../lib/telemetry.ts";
-import { GitHubClient, GitHubAuthError } from "../lib/discovery/github-client.ts";
-import { detectGitHubUsername, scanGitHub } from "../lib/discovery/github-scanner.ts";
-import { mergeCloudProjects } from "../lib/inventory/store.ts";
-import { searchPackageRegistries } from "../lib/discovery/package-registries.ts";
+} from "@agent-cv/core/src/pipeline.ts";
+import type { Project, Inventory, AgentAdapter } from "@agent-cv/core/src/types.ts";
+import { markNoticeSeen, track, trackPipelineStep } from "@agent-cv/core/src/telemetry.ts";
+import { detectGitHubUsername } from "@agent-cv/core/src/discovery/github-scanner.ts";
+import { mergeGitHubCloudIntoScanResult } from "@agent-cv/core/src/pipeline/github-cloud-phase.ts";
+import {
+  pipelinePhaseMachine,
+  gotoPhaseEvent,
+  isValidPhaseTransition,
+  type Phase,
+} from "../pipeline/phase-machine.ts";
 
 export interface PipelineOptions {
   directory: string;
@@ -49,10 +54,6 @@ interface Props {
   onError: (error: string) => void;
 }
 
-type Phase =
-  | "init" | "scanning" | "picking-emails" | "recounting" | "selecting"
-  | "picking-agent" | "analyzing" | "analysis-failed" | "finishing" | "done";
-
 /**
  * Reusable pipeline component: scan → emails → recount → select → agent → analyze.
  * Commands provide onComplete to do their specific thing with the results.
@@ -61,18 +62,42 @@ export function Pipeline({ options, onComplete, onError }: Props) {
   const { directory, all: selectAll, email, agent = "auto", noCache, dryRun, github: githubUsername, includeForks, interactive } = options;
 
   const { write } = useStdout();
-  const prevPhase = useRef<Phase>("init");
-  const [phase, _setPhase] = useState<Phase>("init");
-  const setPhase = useCallback((next: Phase) => {
-    // Only clear screen for interactive picker phases (not silent skips)
+  const pipelineMachineInput = useMemo(
+    () => ({
+      bootstrap: async () => ({ alreadySeen: await markNoticeSeen() }),
+    }),
+    []
+  );
+  const [snapshot, send, phaseActor] = useMachine(pipelinePhaseMachine, {
+    input: pipelineMachineInput,
+  });
+  const phase = snapshot.value as Phase;
+  const showTelemetryNotice = snapshot.context.showTelemetryNotice;
+  /** Tracks last committed machine phase for clear-screen on interactive steps only after a real transition. */
+  const lastPhaseForClearRef = useRef<Phase | null>(null);
+
+  useEffect(() => {
     const interactivePhases = new Set<Phase>(["picking-emails", "selecting", "picking-agent"]);
-    if (prevPhase.current !== next && interactivePhases.has(next)) {
+    const prev = lastPhaseForClearRef.current;
+    if (prev !== null && prev !== phase && interactivePhases.has(phase)) {
       write("\x1b[2J\x1b[H");
     }
-    prevPhase.current = next;
-    _setPhase(next);
-  }, [write]);
-  const [showTelemetryNotice, setShowTelemetryNotice] = useState(false);
+    lastPhaseForClearRef.current = phase;
+  }, [phase, write]);
+
+  const setPhase = useCallback(
+    (next: Phase) => {
+      const from = phaseActor.getSnapshot().value as Phase;
+      if (!isValidPhaseTransition(from, next)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[Pipeline] Ignored invalid phase transition: ${from} -> ${next}`);
+        }
+        return;
+      }
+      send(gotoPhaseEvent(next));
+    },
+    [send, phaseActor]
+  );
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<Project[]>([]);
   const [inventory, setInventory] = useState<Inventory | null>(null);
@@ -93,15 +118,6 @@ export function Pipeline({ options, onComplete, onError }: Props) {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [current, setCurrent] = useState("");
   const [projectStatuses, setProjectStatuses] = useState<Map<string, { status: ProjectStatus; detail?: string }>>(new Map());
-
-  // Phase 0: Show telemetry notice (first run only), then start scanning
-  useEffect(() => {
-    if (phase !== "init") return;
-    markNoticeSeen().then((alreadySeen) => {
-      if (!alreadySeen) setShowTelemetryNotice(true);
-      setPhase("scanning");
-    });
-  }, [phase]);
 
   // Phase 1: Scan
   const scanningRef = useRef(false);
@@ -149,86 +165,35 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         // Detect project groups (frontend+backend in same org → one group)
         detectProjectGroups(result.projects, directory);
 
-        // GitHub cloud scanning
+        // GitHub cloud scanning + package registries (lib module — testable with mocked client)
         const ghUser = githubUsername || detectGitHubUsername(result.inventory);
         if (ghUser) {
-          const ghClient = await GitHubClient.create();
-          if (!ghClient.isAuthenticated) {
-            setCurrent("Skipping GitHub scan — set GITHUB_TOKEN or credentials.githubToken");
-          } else {
-            try {
-              setCurrent(`Scanning GitHub repos for ${ghUser}...`);
-              const ghScanStarted = Date.now();
-              const ghResult = await scanGitHub(ghUser, ghClient, {
-                includeForks,
-                onProgress: (done, total, name) => {
-                  setCurrent(`GitHub: ${done}/${total} — ${name}`);
-                },
-              });
-              await trackPipelineStep("github_cloud_scan", Date.now() - ghScanStarted, {
-                cloud_repos: ghResult.projects.length,
-              });
-
-              // Merge cloud projects into inventory (dedup via remoteUrl)
-              result.inventory = mergeCloudProjects(result.inventory, ghResult.projects);
-              result.projects = result.inventory.projects.filter((p) => !p.tags.includes("removed"));
-
-              // Save GitHub profile data
-              if (ghResult.profile) {
-                result.inventory.profile.name = result.inventory.profile.name || ghResult.profile.name || undefined;
-                if (ghResult.profile.bio) {
-                  result.inventory.profile.socials = {
-                    ...result.inventory.profile.socials,
-                    github: ghUser,
-                    website: result.inventory.profile.socials?.website || ghResult.profile.blog || undefined,
-                  };
-                }
-              }
-
-              // Save starred repos and contributions to inventory for rendering
-              if (ghResult.starredRepos.length > 0 || ghResult.contributions.length > 0) {
-                (result.inventory as any).githubExtras = {
-                  starredRepos: ghResult.starredRepos.slice(0, 200),
-                  contributions: ghResult.contributions,
-                  avatarUrl: ghResult.profile?.avatar_url,
-                };
-              }
-
-              // Search package registries
-              try {
-                setCurrent("Searching package registries...");
-                const pkgStarted = Date.now();
-                const packages = await searchPackageRegistries(ghUser, (registry, error) => {
-                  setCurrent(`Warning: ${error}`);
+          const cloud = await mergeGitHubCloudIntoScanResult(
+            {
+              inventory: result.inventory,
+              projects: result.projects,
+              ghUser,
+              includeForks,
+            },
+            {
+              onStatus: setCurrent,
+              onGitHubProgress: (done, total, name) => {
+                setCurrent(`GitHub: ${done}/${total} — ${name}`);
+              },
+              onGitHubScanComplete: async (durationMs, meta) => {
+                await trackPipelineStep("github_cloud_scan", durationMs, {
+                  cloud_repos: meta.cloud_repos,
                 });
-                await trackPipelineStep("package_registry_search", Date.now() - pkgStarted, {
-                  packages_found: packages.length,
+              },
+              onPackageRegistrySearchComplete: async (durationMs, meta) => {
+                await trackPipelineStep("package_registry_search", durationMs, {
+                  packages_found: meta.packages_found,
                 });
-                if (packages.length > 0) {
-                  (result.inventory as any).publishedPackages = packages;
-                }
-              } catch {
-                // Package registries are best-effort
-              }
-
-              await writeInventory(result.inventory);
-
-              if (ghResult.errors.length > 0) {
-                for (const err of ghResult.errors) {
-                  setCurrent(`Warning: ${err.context} — ${err.error}`);
-                }
-              }
-
-              setCurrent(`GitHub: found ${ghResult.projects.length} repos, ${ghResult.starredRepos.length} starred`);
-            } catch (err: any) {
-              if (err instanceof GitHubAuthError) {
-                setCurrent(`GitHub auth failed: ${err.message}`);
-              } else {
-                setCurrent(`GitHub scan failed: ${err.message}`);
-              }
-              // Continue with local-only results
+              },
             }
-          }
+          );
+          result.inventory = cloud.inventory;
+          result.projects = cloud.projects;
         }
 
         detectProjectGroupsFromRemotes(result.projects);
@@ -279,7 +244,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
       }
     }
     scan();
-  }, [phase, directory, email, dryRun]);
+  }, [phase, directory, email, dryRun, githubUsername, includeForks, interactive, agent]);
 
   // Email picker
   const handleEmailPick = useCallback(async (selected: string[], save: boolean) => {
@@ -336,7 +301,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     const savedAgent = inventory?.lastAgent;
     if (!savedAgent) return false;
     try {
-      const { getAdapterByName } = await import("../lib/analysis/resolve-adapter.ts");
+      const { getAdapterByName } = await import("@agent-cv/core/src/analysis/resolve-adapter.ts");
       const adapter = getAdapterByName(savedAgent);
       if (adapter && await adapter.isAvailable()) {
         setCurrent(`Using ${savedAgent}`);
@@ -407,7 +372,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         // Calculate significance scores and assign tiers
         if (!dryRun && inventory) {
           setCurrent("Scoring projects and assigning tiers…");
-          const { assignTiers } = await import("../lib/discovery/significance.ts");
+          const { assignTiers } = await import("@agent-cv/core/src/discovery/significance.ts");
           const tiers = assignTiers(fullProjects);
           // Write to both fullProjects and inventory.projects by id
           const tiersById = new Map(tiers);

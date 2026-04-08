@@ -4,31 +4,31 @@ overview: "Refactor roadmap for agent-cv: Lake then Ocean. AskQuestion locks —
 todos:
   - id: split-pipeline-ts
     content: Split src/lib/pipeline.ts into focused modules + barrel re-exports; run bun test after each chunk
-    status: pending
+    status: completed
   - id: inventory-extras-types
     content: Replace (inventory as any) with optional typed githubExtras/publishedPackages on Inventory
-    status: pending
+    status: completed
   - id: extract-github-cloud
     content: Move GitHub cloud + package registry orchestration out of Pipeline.tsx into testable lib module with mocked GitHubClient
-    status: pending
+    status: completed
   - id: optional-zod-inventory
     content: "Phase A (locked): parseInventory with zod in readInventory; align with TODOS.md migration item"
-    status: pending
+    status: completed
   - id: cli-version-sync
     content: Sync cli.ts .version() with package.json version
-    status: pending
+    status: completed
   - id: monorepo-core
-    content: "Ocean — Add workspaces + packages/core (types, pipeline, discovery, inventory); CLI package depends on core; bun test from root"
-    status: pending
+    content: Ocean — Add workspaces + packages/core (types, pipeline, discovery, inventory); CLI package depends on core; bun test from root
+    status: completed
   - id: xstate-pipeline
-    content: "Ocean — Model Pipeline phases with XState; Ink subscribes to actor/snapshot; tests for transitions + parity with current behavior"
-    status: pending
+    content: Ocean — Model Pipeline phases with XState; Ink subscribes to actor/snapshot; tests for transitions + parity with current behavior
+    status: completed
   - id: adapters-prompts
-    content: "Phase D — Planned sweeps: one adapter family per PR (API batch first, then CLI agents); golden/snapshot + PROMPT_VERSION"
-    status: pending
+    content: "Phase D — Shared api-parse for API, Ollama, Claude/Codex/Cursor/OpenCode; tests in test/api-adapter.test.ts; PROMPT_VERSION when schema/prompts change"
+    status: completed
   - id: ci-release
     content: "Phase E — v1: bun test on PR/push only; release/docs/build:binary later if needed"
-    status: pending
+    status: completed
 isProject: false
 ---
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
-import { GitHubClient, GitHubAuthError, GitHubRateLimitError, GitHubNotFoundError } from "../src/lib/discovery/github-client.ts";
+import { GitHubClient, GitHubAuthError, GitHubRateLimitError, GitHubNotFoundError } from "@agent-cv/core/src/discovery/github-client.ts";
 
 // Mock fetch globally
 const originalFetch = globalThis.fetch;

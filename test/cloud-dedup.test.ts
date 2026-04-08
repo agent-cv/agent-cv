@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { mergeCloudProjects } from "../src/lib/inventory/store.ts";
-import type { Inventory, Project } from "../src/lib/types.ts";
+import { mergeCloudProjects } from "@agent-cv/core/src/inventory/store.ts";
+import type { Inventory, Project } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project>): Project {
   return {

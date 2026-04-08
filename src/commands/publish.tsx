@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, useApp } from "ink";
-import { readInventory } from "../lib/inventory/store.ts";
-import { track, flush as flushTelemetry } from "../lib/telemetry.ts";
+import { readInventory } from "@agent-cv/core/src/inventory/store.ts";
+import { track, flush as flushTelemetry } from "@agent-cv/core/src/telemetry.ts";
 import { Pipeline, type PipelineResult } from "../components/Pipeline.tsx";
 import { PublishResult } from "../components/PublishResult.tsx";
 import {
@@ -12,10 +12,11 @@ import {
   writeAuthToken,
   PendingError,
   SlowDownError,
-} from "../lib/auth.ts";
-import type { Inventory, Project } from "../lib/types.ts";
-import { sanitizeForPublish } from "../lib/publish.ts";
+} from "@agent-cv/core/src/auth.ts";
+import type { Inventory, Project } from "@agent-cv/core/src/types.ts";
+import { sanitizeForPublish } from "@agent-cv/core/src/publish.ts";
 import { exec } from "node:child_process";
+import { clearTimeout, setTimeout } from "node:timers";
 
 type Phase =
   | "checking-auth" | "auth" | "polling"

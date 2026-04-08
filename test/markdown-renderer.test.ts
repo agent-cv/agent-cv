@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { MarkdownRenderer } from "../src/lib/output/markdown-renderer.ts";
-import type { Project, Inventory } from "../src/lib/types.ts";
+import { MarkdownRenderer } from "@agent-cv/core/src/output/markdown-renderer.ts";
+import type { Project, Inventory } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {

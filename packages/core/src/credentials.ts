@@ -28,7 +28,10 @@ export async function readCredentials(): Promise<SavedCredentials> {
 export async function writeCredentials(creds: SavedCredentials): Promise<void> {
   const dir = getDataDir();
   await mkdir(dir, { recursive: true });
-  await writeFile(getCredentialsPath(), JSON.stringify(creds, null, 2), "utf-8");
+  await writeFile(getCredentialsPath(), JSON.stringify(creds, null, 2), {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
 }
 
 /**

@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import type { AgentAdapter, ProjectAnalysis, ProjectContext } from "../types.ts";
+import { parseClaudeCliAnalysisResponse, unwrapClaudeCliJsonStdout } from "./api-parse.ts";
 
 /**
  * Claude Code CLI adapter.
@@ -55,15 +55,11 @@ export class ClaudeAdapter implements AgentAdapter {
 
     if (context.rawPrompt) {
       // Raw prompt mode: return LLM output as-is in summary, caller parses
-      let text = stdout.trim();
-      try {
-        const claudeOutput = JSON.parse(text);
-        if (claudeOutput.result) text = claudeOutput.result;
-      } catch { /* not Claude JSON format */ }
+      const text = unwrapClaudeCliJsonStdout(stdout);
       return { summary: text, techStack: [], contributions: [], analyzedAt: new Date().toISOString(), analyzedBy: "claude" };
     }
 
-    return parseResponse(stdout);
+    return parseClaudeCliAnalysisResponse(stdout);
   }
 }
 
@@ -119,53 +115,4 @@ function buildPrompt(context: ProjectContext): string {
   }
 
   return parts.join("\n");
-}
-
-function parseResponse(raw: string): ProjectAnalysis {
-  // Claude with --output-format json wraps the result
-  let text = raw.trim();
-
-  // Try to parse the Claude JSON output format first
-  try {
-    const claudeOutput = JSON.parse(text);
-    // Claude's JSON output has a "result" field with the text content
-    if (claudeOutput.result) {
-      text = claudeOutput.result;
-    }
-  } catch {
-    // Not Claude JSON format, use raw text
-  }
-
-  // Try to find JSON in the response
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("No JSON found in response");
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    const analysis: ProjectAnalysis = {
-      summary: parsed.summary || "",
-      techStack: Array.isArray(parsed.techStack) ? parsed.techStack : [],
-      contributions: Array.isArray(parsed.contributions)
-        ? parsed.contributions
-        : [],
-      impactScore: typeof parsed.impactScore === "number" ? Math.min(10, Math.max(1, parsed.impactScore)) : undefined,
-      analyzedAt: new Date().toISOString(),
-      analyzedBy: "claude",
-    };
-
-    // Validate non-empty
-    if (!analysis.summary) {
-      throw new Error("Analysis has empty summary");
-    }
-    if (analysis.techStack.length === 0) {
-      throw new Error("Analysis has empty techStack");
-    }
-
-    return analysis;
-  } catch (err: any) {
-    if (err.message.includes("Analysis has empty")) throw err;
-    throw new Error(`Failed to parse analysis JSON: ${err.message}`);
-  }
 }
