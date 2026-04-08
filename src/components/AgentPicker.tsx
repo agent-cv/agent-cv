@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import { ClaudeAdapter } from "../lib/analysis/claude-adapter.ts";
 import { CodexAdapter } from "../lib/analysis/codex-adapter.ts";
@@ -48,8 +48,13 @@ export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number; isRecommended?: boolean; needsDownload?: boolean }>>([]);
   const [modelCursor, setModelCursor] = useState(0);
 
-  useEffect(() => {
-    async function detect() {
+  const isInitialDetectRef = useRef(true);
+  const detectInFlightRef = useRef(false);
+
+  const runDetect = useCallback(async () => {
+    if (detectInFlightRef.current) return;
+    detectInFlightRef.current = true;
+    try {
       const options: AgentOption[] = [
         {
           name: "ollama",
@@ -118,13 +123,33 @@ export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
       );
 
       setAgents(options);
-      const savedIdx = defaultAgent ? options.findIndex((o) => o.name === defaultAgent && o.available) : -1;
-      const firstAvailable = savedIdx >= 0 ? savedIdx : options.findIndex((o) => o.available);
-      if (firstAvailable >= 0) setCursor(firstAvailable);
-      setLoading(false);
+
+      if (isInitialDetectRef.current) {
+        const savedIdx = defaultAgent ? options.findIndex((o) => o.name === defaultAgent && o.available) : -1;
+        const firstAvailable = savedIdx >= 0 ? savedIdx : options.findIndex((o) => o.available);
+        if (firstAvailable >= 0) setCursor(firstAvailable);
+        setLoading(false);
+        isInitialDetectRef.current = false;
+      } else {
+        setCursor((c) => Math.max(0, Math.min(c, options.length - 1)));
+      }
+    } finally {
+      detectInFlightRef.current = false;
     }
-    detect();
-  }, []);
+  }, [defaultAgent]);
+
+  useEffect(() => {
+    void runDetect();
+  }, [runDetect]);
+
+  // Re-scan agent availability on the list screen so e.g. Ollama shows up shortly after start
+  useEffect(() => {
+    if (phase !== "list" || loading) return;
+    const id = setInterval(() => {
+      void runDetect();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [phase, loading, runDetect]);
 
   // Handle key input for API key entry
   useInput((input, key) => {
@@ -175,6 +200,8 @@ export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
         else exit();
       } else if (input === "q") {
         exit();
+      } else if (input === "r") {
+        void runDetect();
       }
     } else if (phase === "ollama-model") {
       if (key.upArrow) {
@@ -367,7 +394,9 @@ export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
     <Box flexDirection="column">
       <Box marginBottom={1} flexDirection="column">
         <Text bold>Choose AI agent for analysis</Text>
-        <Text dimColor>[Enter] select  [Esc] back  [q] quit</Text>
+        <Text dimColor>
+          [Enter] select  [Esc] back  [q] quit  [r] refresh — auto every 5s
+        </Text>
       </Box>
 
       {agents.map((agent, i) => {

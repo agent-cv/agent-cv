@@ -173,6 +173,7 @@ export async function scanGitHub(
       stars: repo.stargazers_count,
       source: "github",
       isOwner: true, // user's own repos
+      isFork: repo.fork,
     });
   }
 

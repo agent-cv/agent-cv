@@ -1,33 +1,7 @@
-import type { AgentAdapter, Project, ProjectContext } from "../types.ts";
+import type { AgentAdapter, ProfileInsights, Project, ProjectContext, YearlyInsight, YearlyTheme } from "../types.ts";
+import { mergeYearlyEngagementSections } from "../discovery/project-engagement.ts";
 
-export interface YearlyTheme {
-  year: string;
-  focus: string;
-  topProjects: string[];
-  exploring?: string[];
-}
-
-export interface YearlyInsight {
-  year: string;
-  focus: string;
-  highlights: string[];
-  skills: string[];
-  domains: string[];
-  achievement?: string;
-  exploring?: string[];
-  source: "llm" | "metadata";
-}
-
-export interface ProfileInsights {
-  bio: string;
-  highlights: string[];
-  highlightsByYear?: Record<string, string[]>;
-  narrative: string;
-  strongestSkills: string[];
-  uniqueTraits: string[];
-  yearlyThemes: YearlyTheme[];
-  yearlyInsights?: YearlyInsight[];
-}
+export type { YearlyInsight, YearlyTheme } from "../types.ts";
 
 const INSIGHTS_BATCH_SIZE = 3;
 
@@ -66,13 +40,13 @@ export async function generateProfileInsights(
   if (analyzed.length === 0) return null;
 
   // Step 1: Per-year analysis
-  onStep?.("analyzing per-year insights...");
-  const yearlyInsights = await generateYearlyInsights(projects, adapter, onStep);
+  onStep?.("Analyzing per-year highlights…");
+  let yearlyInsights = await generateYearlyInsights(projects, adapter, onStep);
 
   if (yearlyInsights.length === 0) return null;
 
   // Step 2: Profile aggregation
-  onStep?.("generating profile...");
+  onStep?.("Synthesizing profile (bio, narrative, skills)…");
   const profile = await generateAggregateProfile(yearlyInsights, projects, adapter);
 
   if (!profile) return null;
@@ -86,9 +60,10 @@ export async function generateProfileInsights(
   const allYears = [...byYear.keys()].sort((a, b) => b.localeCompare(a));
   for (const year of allYears) {
     const yProjects = byYear.get(year)!;
-    // "Significant author" = owner, or substantial contributor (not a drive-by PR)
+    // "Significant author" = owner of a non-fork, or substantial contributor (not a drive-by PR)
+    const ownsOriginal = (p: Project) => Boolean(p.isOwner && !p.isFork);
     const isSignificantAuthor = (p: Project) =>
-      p.isOwner || p.hasUncommittedChanges || !p.hasGit ||
+      ownsOriginal(p) || !p.hasGit ||
       (p.authorCommitCount > 0 && (p.commitCount === 0 || p.authorCommitCount / p.commitCount > 0.1 || p.authorCommitCount >= 10));
     const highlighted = yProjects
       .filter((p) => isSignificantAuthor(p) && (p.tier === "primary" || p.isPublic))
@@ -99,12 +74,16 @@ export async function generateProfileInsights(
     }
   }
 
-  const yearlyThemes: YearlyTheme[] = yearlyInsights.map((yi) => ({
+  let yearlyThemes: YearlyTheme[] = yearlyInsights.map((yi) => ({
     year: yi.year,
     focus: yi.focus,
     topProjects: highlightsByYear[yi.year] ?? [],
     exploring: yi.exploring,
   }));
+
+  const engagement = mergeYearlyEngagementSections(yearlyThemes, yearlyInsights, projects);
+  yearlyThemes = engagement.yearlyThemes;
+  yearlyInsights = engagement.yearlyInsights ?? yearlyInsights;
 
   // Flat highlights (newest first)
   const highlights: string[] = [];
@@ -203,7 +182,7 @@ async function analyzeYear(
   // Separate authored projects (real work) from cloned/forked (interests)
   // "Authored" = has commits, has uncommitted changes, OR no git (user created the folder)
   const isAuthored = (p: Project) =>
-    p.authorCommitCount > 0 || p.hasUncommittedChanges || !p.hasGit;
+    p.authorCommitCount > 0 || (p.hasUncommittedChanges && p.isOwner) || !p.hasGit;
   const authored = projects.filter(isAuthored);
   // "Cloned" = has git, zero author commits, no uncommitted changes (pure clone/fork)
   const cloned = projects.filter((p) => !isAuthored(p) && p.analysis);

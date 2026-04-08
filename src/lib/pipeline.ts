@@ -21,6 +21,9 @@ import { dirname, basename, resolve } from "node:path";
 import { PROMPT_VERSION } from "./types.ts";
 import type { Project, Inventory, AgentAdapter } from "./types.ts";
 import { GitHubClient } from "./discovery/github-client.ts";
+import { enrichUpstreamPullRequestCounts } from "./discovery/github-upstream.ts";
+import { detectGitHubUsername } from "./discovery/github-scanner.ts";
+import { withPipelineTiming } from "./telemetry.ts";
 
 /**
  * Determine which pipeline phases can be skipped on return runs.
@@ -54,26 +57,45 @@ export interface ScanCallbacks {
   onDirectoryEnter?: (dir: string) => void;
 }
 
+export interface ScanMergeOptions {
+  /** Skip GitHub GET /repos enrichment (e.g. dry-run). Fork/stars/public come from API in one call. */
+  skipGitHubEnrich?: boolean;
+}
+
 /**
  * Step 1: Scan directory and merge with existing inventory.
+ * Enriches local github.com remotes with one batched GET /repos pass (stars, visibility, fork).
  */
 export async function scanAndMerge(
   directory: string,
-  callbacks?: ScanCallbacks
+  callbacks?: ScanCallbacks,
+  options?: ScanMergeOptions
 ): Promise<{ inventory: Inventory; projects: Project[] }> {
-  const scanResult = await scanDirectory(directory, {
-    verbose: false,
-    emails: [],
-    onProjectFound: callbacks?.onProjectFound,
-    onDirectoryEnter: callbacks?.onDirectoryEnter,
-  });
+  const scanResult = await withPipelineTiming("scan_filesystem", () =>
+    scanDirectory(directory, {
+      verbose: false,
+      emails: [],
+      onProjectFound: callbacks?.onProjectFound,
+      onDirectoryEnter: callbacks?.onDirectoryEnter,
+    })
+  );
 
   const absDirectory = resolve(directory);
   const existingInventory = await readInventory();
   const merged = mergeInventory(existingInventory, scanResult.projects, absDirectory);
-  await writeInventory(merged);
 
   const projects = merged.projects.filter((p) => !p.tags.includes("removed"));
+  if (!options?.skipGitHubEnrich) {
+    const ghClient = await GitHubClient.create();
+    await withPipelineTiming("github_enrich_rest", () => enrichGitHubData(projects, ghClient));
+    const ghLogin =
+      merged.profile.socials?.github?.trim() || detectGitHubUsername(merged) || undefined;
+    await withPipelineTiming("github_upstream_prs", () =>
+      enrichUpstreamPullRequestCounts(projects, ghClient, ghLogin)
+    );
+  }
+  await writeInventory(merged);
+
   return { inventory: merged, projects };
 }
 
@@ -84,16 +106,18 @@ export async function collectEmails(projects: Project[], savedEmails: string[] =
   emailCounts: Map<string, number>;
   preSelected: Set<string>;
 }> {
-  const gitDirs = projects.filter((p) => p.hasGit).map((p) => p.path);
-  const allEmails = await collectAllRepoEmails(gitDirs);
-  const configEmails = await collectUserEmails([]);
+  return withPipelineTiming("collect_emails", async () => {
+    const gitDirs = projects.filter((p) => p.hasGit).map((p) => p.path);
+    const allEmails = await collectAllRepoEmails(gitDirs);
+    const configEmails = await collectUserEmails([]);
 
-  const preSelected = new Set<string>([
-    ...configEmails,
-    ...savedEmails.map((e: string) => e.toLowerCase()),
-  ]);
+    const preSelected = new Set<string>([
+      ...configEmails,
+      ...savedEmails.map((e: string) => e.toLowerCase()),
+    ]);
 
-  return { emailCounts: allEmails, preSelected };
+    return { emailCounts: allEmails, preSelected };
+  });
 }
 
 /**
@@ -103,27 +127,29 @@ export async function recountAndTag(
   projects: Project[],
   confirmedEmails: string[]
 ): Promise<Project[]> {
-  const updated = [...projects];
+  return withPipelineTiming("recount_and_tag", async () => {
+    const updated = [...projects];
 
-  if (confirmedEmails.length > 0) {
-    const counts = await recountAuthorCommitsBatch(updated, confirmedEmails);
-    for (const project of updated) {
-      const result = counts.get(project.path);
-      if (result) {
-        project.authorCommitCount = result.authorCommits;
-        project.authorEmail = result.matchedEmail;
+    if (confirmedEmails.length > 0) {
+      const counts = await recountAuthorCommitsBatch(updated, confirmedEmails);
+      for (const project of updated) {
+        const result = counts.get(project.path);
+        if (result) {
+          project.authorCommitCount = result.authorCommits;
+          project.authorEmail = result.matchedEmail;
+        }
       }
     }
-  }
 
-  const gems = detectForgottenGems(updated);
-  for (const gem of gems) {
-    if (!gem.tags.includes("forgotten-gem")) {
-      gem.tags.push("forgotten-gem");
+    const gems = detectForgottenGems(updated);
+    for (const gem of gems) {
+      if (!gem.tags.includes("forgotten-gem")) {
+        gem.tags.push("forgotten-gem");
+      }
     }
-  }
 
-  return updated;
+    return updated;
+  });
 }
 
 /**
@@ -150,6 +176,8 @@ export function detectProjectGroups(projects: Project[], scanRoot: string): void
     }
   }
 }
+
+export { detectProjectGroupsFromRemotes } from "./discovery/remote-grouping.ts";
 
 /**
  * Transient error patterns that are worth retrying (rate limits, network, server errors).
@@ -199,6 +227,8 @@ export interface AnalysisResult {
   analyzed: number;
   failed: Array<{ project: Project; error: string }>;
   skipped: number;
+  /** Wall-clock ms for the full analyzeProjects run (including inventory writes). */
+  durationMs: number;
 }
 
 export type ProjectStatus = "queued" | "analyzing" | "done" | "failed" | "cached";
@@ -214,6 +244,7 @@ export async function analyzeProjects(
     onProjectStatus?: (projectId: string, status: ProjectStatus, detail?: string) => void;
   } = {}
 ): Promise<AnalysisResult> {
+  const analyzeStarted = Date.now();
   const { noCache = false, dryRun = false, onProgress, onProjectStatus } = options;
 
   const needsAnalysis = (p: Project) => {
@@ -249,6 +280,10 @@ export async function analyzeProjects(
   let lastFailureMessage = "";
   let circuitBroken = false;
 
+  const cloudGhClient = toAnalyze.some((p) => p.source === "github")
+    ? await GitHubClient.create()
+    : undefined;
+
   for (let i = 0; i < toAnalyze.length; i += BATCH_SIZE) {
     // Circuit breaker: if adapter is consistently failing, stop early
     if (circuitBroken) {
@@ -283,8 +318,10 @@ export async function analyzeProjects(
           let context;
           try {
             if (project.source === "github") {
-              const ghClient = new GitHubClient();
-              context = await buildCloudProjectContext(project, ghClient);
+              if (!cloudGhClient) {
+                throw new Error("GitHub client not initialized for cloud project");
+              }
+              context = await buildCloudProjectContext(project, cloudGhClient);
             } else {
               context = await buildProjectContext(project);
             }
@@ -335,7 +372,8 @@ export async function analyzeProjects(
     await writeInventory(inventory);
   }
 
-  return { analyzed: analyzedOk, failed, skipped };
+  const durationMs = Date.now() - analyzeStarted;
+  return { analyzed: analyzedOk, failed, skipped, durationMs };
 }
 
 /**
@@ -346,29 +384,28 @@ export function countUnanalyzed(projects: Project[]): number {
 }
 
 /**
- * Enrich projects with GitHub data (stars, isPublic).
+ * Enrich local projects with GitHub REST data (stars, visibility, fork) via GET /repos/{owner}/{repo}.
+ * Single request per repo — same endpoint previously split across scan (fork) and post-analysis (stars).
  * Uses centralized GitHubClient for auth and rate limit tracking.
- * Batches API calls 10 at a time. Only checks local projects with github.com remoteUrl
- * that don't already have cloud-sourced data.
+ * Batches API calls 10 at a time. Includes cloud-listed repos so fork `parent` is filled in.
  */
 export async function enrichGitHubData(
   projects: Project[],
   client?: GitHubClient,
   onProgress?: (done: number, total: number) => void
 ): Promise<void> {
-  // Skip cloud-sourced projects (they already have stars/isPublic from the API listing)
-  const toCheck = projects.filter(
-    (p) => p.remoteUrl?.includes("github.com") && p.source !== "github"
-  );
+  const toCheck = projects.filter((p) => p.remoteUrl?.includes("github.com"));
   if (toCheck.length === 0) return;
 
-  const ghClient = client || new GitHubClient();
+  const ghClient = client ?? (await GitHubClient.create());
   const BATCH = 10;
   let done = 0;
 
   for (let i = 0; i < toCheck.length; i += BATCH) {
     if (ghClient.isRateLimited) {
-      console.error("Warning: GitHub API rate limit reached, skipping remaining repos. Set GITHUB_TOKEN for higher limits.");
+      console.error(
+        "Warning: GitHub API rate limit reached, skipping remaining repos. Set GITHUB_TOKEN or save githubToken in credentials.json for higher limits."
+      );
       break;
     }
     const batch = toCheck.slice(i, i + BATCH);
@@ -377,11 +414,18 @@ export async function enrichGitHubData(
       try {
         const match = p.remoteUrl!.match(/github\.com\/([^/]+\/[^/]+)/);
         if (!match) return;
-        const data = await ghClient.get<{ stargazers_count: number; private: boolean }>(
-          `/repos/${match[1]}`
-        );
+        const data = await ghClient.get<{
+          stargazers_count: number;
+          private: boolean;
+          fork: boolean;
+          parent?: { full_name: string };
+        }>(`/repos/${match[1]}`);
         p.stars = data.stargazers_count || 0;
         p.isPublic = !data.private;
+        p.isFork = data.fork;
+        if (data.parent?.full_name) {
+          p.githubParentFullName = data.parent.full_name;
+        }
       } catch {
         // Non-critical: skip this repo's enrichment
       }

@@ -1,6 +1,6 @@
 /**
  * Centralized GitHub API client with auth, rate limiting, and retry.
- * Used by both GitHubProvider (cloud scanning) and enrichGitHubData().
+ * Used by github-scanner (cloud listing) and enrichGitHubData() (GET /repos batch).
  *
  *   ┌────────────┐     ┌──────────────┐     ┌─────────────┐
  *   │ github-    │────▶│ Rate limit   │────▶│ GitHub API  │
@@ -21,13 +21,11 @@ export class GitHubClient {
     this.token = token || process.env.GITHUB_TOKEN;
   }
 
-  /** Create client with token from env or saved credentials */
+  /** Create client with token from GITHUB_TOKEN env or saved credentials (see resolveGitHubToken). */
   static async create(): Promise<GitHubClient> {
-    const envToken = process.env.GITHUB_TOKEN;
-    if (envToken) return new GitHubClient(envToken);
     const { resolveGitHubToken } = await import("../credentials.ts");
-    const saved = await resolveGitHubToken();
-    return new GitHubClient(saved || undefined);
+    const token = await resolveGitHubToken();
+    return new GitHubClient(token || undefined);
   }
 
   get isAuthenticated(): boolean {

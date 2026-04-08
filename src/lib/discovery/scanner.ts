@@ -360,6 +360,12 @@ async function buildProject(
     } catch { /* ignore */ }
   }
 
+  let remoteUrl: string | undefined;
+  if (hasGit) {
+    const rawRemote = await extractRemoteUrl(dir);
+    remoteUrl = rawRemote ?? undefined;
+  }
+
   return {
     id,
     path: dir,
@@ -383,7 +389,7 @@ async function buildProject(
     privacyAudit,
     tags: [],
     included: true,
-    remoteUrl: hasGit ? await extractRemoteUrl(dir) : undefined,
+    remoteUrl,
     authorEmail: gitMeta?.authorEmail,
     isOwner: gitMeta?.firstCommitAuthorEmail
       ? userEmails.has(gitMeta.firstCommitAuthorEmail)

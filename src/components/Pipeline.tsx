@@ -13,13 +13,13 @@ import {
   collectEmails,
   recountAndTag,
   analyzeProjects,
-  enrichGitHubData,
   shouldSkipPhases,
   detectProjectGroups,
+  detectProjectGroupsFromRemotes,
   type ProjectStatus,
 } from "../lib/pipeline.ts";
 import type { Project, Inventory, AgentAdapter } from "../lib/types.ts";
-import { markNoticeSeen, track } from "../lib/telemetry.ts";
+import { markNoticeSeen, track, trackPipelineStep } from "../lib/telemetry.ts";
 import { GitHubClient, GitHubAuthError } from "../lib/discovery/github-client.ts";
 import { detectGitHubUsername, scanGitHub } from "../lib/discovery/github-scanner.ts";
 import { mergeCloudProjects } from "../lib/inventory/store.ts";
@@ -51,7 +51,7 @@ interface Props {
 
 type Phase =
   | "init" | "scanning" | "picking-emails" | "recounting" | "selecting"
-  | "picking-agent" | "analyzing" | "analysis-failed" | "done";
+  | "picking-agent" | "analyzing" | "analysis-failed" | "finishing" | "done";
 
 /**
  * Reusable pipeline component: scan → emails → recount → select → agent → analyze.
@@ -110,6 +110,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     if (scanningRef.current) return;
     scanningRef.current = true;
     async function scan() {
+      const phaseScanStarted = Date.now();
       try {
         await track("command_start", { command: "pipeline" });
         const existingInv = await readInventory();
@@ -117,23 +118,30 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         const prevCount = existingInv.projects.filter((p) => !p.tags.includes("removed") && p.path.startsWith(absDir)).length;
         setPrevProjectCount(prevCount);
         const scanState = { count: 0, last: "" };
-        const result = await scanAndMerge(directory, {
-          onProjectFound: (p, total) => {
-            scanState.count = total;
-            scanState.last = p.path.replace(directory, "").replace(/^\//, "") || p.displayName;
-            const now = Date.now();
-            if (now - scanThrottle.current > 150) {
-              scanThrottle.current = now;
-              setScanCount(scanState.count);
-              setLastFound(scanState.last);
-            }
+        const result = await scanAndMerge(
+          directory,
+          {
+            onProjectFound: (p, total) => {
+              scanState.count = total;
+              scanState.last = p.path.replace(directory, "").replace(/^\//, "") || p.displayName;
+              const now = Date.now();
+              if (now - scanThrottle.current > 150) {
+                scanThrottle.current = now;
+                setScanCount(scanState.count);
+                setLastFound(scanState.last);
+              }
+            },
           },
-        });
+          { skipGitHubEnrich: dryRun }
+        );
         // Final update with latest values
         setScanCount(scanState.count);
         setLastFound(scanState.last);
 
         if (result.projects.length === 0) {
+          await trackPipelineStep("phase_scan", Date.now() - phaseScanStarted, {
+            outcome: "no_projects",
+          });
           onError(`No projects found in ${directory}`);
           return;
         }
@@ -146,15 +154,19 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         if (ghUser) {
           const ghClient = await GitHubClient.create();
           if (!ghClient.isAuthenticated) {
-            setCurrent("Skipping GitHub scan — set GITHUB_TOKEN for cloud scanning");
+            setCurrent("Skipping GitHub scan — set GITHUB_TOKEN or credentials.githubToken");
           } else {
             try {
               setCurrent(`Scanning GitHub repos for ${ghUser}...`);
+              const ghScanStarted = Date.now();
               const ghResult = await scanGitHub(ghUser, ghClient, {
                 includeForks,
                 onProgress: (done, total, name) => {
                   setCurrent(`GitHub: ${done}/${total} — ${name}`);
                 },
+              });
+              await trackPipelineStep("github_cloud_scan", Date.now() - ghScanStarted, {
+                cloud_repos: ghResult.projects.length,
               });
 
               // Merge cloud projects into inventory (dedup via remoteUrl)
@@ -185,8 +197,12 @@ export function Pipeline({ options, onComplete, onError }: Props) {
               // Search package registries
               try {
                 setCurrent("Searching package registries...");
+                const pkgStarted = Date.now();
                 const packages = await searchPackageRegistries(ghUser, (registry, error) => {
                   setCurrent(`Warning: ${error}`);
+                });
+                await trackPipelineStep("package_registry_search", Date.now() - pkgStarted, {
+                  packages_found: packages.length,
                 });
                 if (packages.length > 0) {
                   (result.inventory as any).publishedPackages = packages;
@@ -215,10 +231,21 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           }
         }
 
+        detectProjectGroupsFromRemotes(result.projects);
+
         setInventory(result.inventory);
         setAllProjects(result.projects);
 
+        const reportPhaseScan = async (branch: string) => {
+          await trackPipelineStep("phase_scan", Date.now() - phaseScanStarted, {
+            outcome: "ok",
+            branch,
+            project_count: result.projects.length,
+          });
+        };
+
         if (email) {
+          await reportPhaseScan("email_flag");
           setConfirmedEmails(email.split(",").map((e) => e.trim()));
           setPhase("recounting");
           return;
@@ -228,6 +255,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         const skips = shouldSkipPhases(result.inventory, result.projects, { interactive, agent });
         if (skips.skipEmails && result.inventory.profile.emails.length > 0) {
           setCurrent(`Using saved emails (${result.inventory.profile.emails.join(", ")})`);
+          await reportPhaseScan("skip_emails_saved");
           setConfirmedEmails(result.inventory.profile.emails);
           setPhase("recounting");
           return;
@@ -238,15 +266,20 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         setGitConfigEmails(emails.preSelected);
 
         if (emails.emailCounts.size === 0) {
+          await reportPhaseScan("no_git_emails");
           setConfirmedEmails([]);
           setPhase("selecting");
           return;
         }
+        await reportPhaseScan("to_email_picker");
         setPhase("picking-emails");
-      } catch (err: any) { onError(err.message); }
+      } catch (err: any) {
+        await trackPipelineStep("phase_scan", Date.now() - phaseScanStarted, { outcome: "error" });
+        onError(err.message);
+      }
     }
     scan();
-  }, [phase, directory, email]);
+  }, [phase, directory, email, dryRun]);
 
   // Email picker
   const handleEmailPick = useCallback(async (selected: string[], save: boolean) => {
@@ -362,24 +395,18 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     // Always use the full project set for post-analysis steps
     const fullProjects = allSelectedRef.current.length > 0 ? allSelectedRef.current : selectedProjects;
     async function finish() {
+      const finishStarted = Date.now();
       try {
-        // Enrich with GitHub data (stars, isPublic)
-        if (!dryRun) {
-          setCurrent("fetching GitHub data...");
-          const enrichClient = await GitHubClient.create();
-          await enrichGitHubData(fullProjects, enrichClient);
-          // Sync to inventory.projects
-          if (inventory) {
-            const enriched = new Map(fullProjects.map((p) => [p.id, p]));
-            for (const p of inventory.projects) {
-              const ep = enriched.get(p.id);
-              if (ep) { p.stars = ep.stars; p.isPublic = ep.isPublic; }
-            }
-          }
+        setPhase("finishing");
+        if (dryRun) {
+          setCurrent("Dry-run: skipping scoring and profile synthesis…");
         }
+
+        // GitHub metadata (stars, visibility, fork) is enriched in scanAndMerge (one GET /repos per repo).
 
         // Calculate significance scores and assign tiers
         if (!dryRun && inventory) {
+          setCurrent("Scoring projects and assigning tiers…");
           const { assignTiers } = await import("../lib/discovery/significance.ts");
           const tiers = assignTiers(fullProjects);
           // Write to both fullProjects and inventory.projects by id
@@ -402,7 +429,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
             .update(analyzed.map((p) => `${p.id}:${p.analysis?.analyzedAt}:${p.significance}`).sort().join("|"))
             .digest("hex");
 
-          if (fingerprint !== inventory.insights._fingerprint) {
+          if (fingerprint !== (inventory.insights?._fingerprint ?? "")) {
             try {
               const insights = await generateProfileInsights(fullProjects, resolvedAdapter!, (step) => setCurrent(step));
               if (insights) {
@@ -411,9 +438,17 @@ export function Pipeline({ options, onComplete, onError }: Props) {
             } catch (e: any) {
               setCurrent(`Warning: insights failed — ${e.message}. Publishing with existing.`);
             }
+          } else {
+            setCurrent("Profile insights up to date (cache hit).");
           }
         }
-        if (inventory) await writeInventory(inventory);
+        if (inventory) {
+          setCurrent("Saving inventory…");
+          await writeInventory(inventory);
+        }
+        await trackPipelineStep("phase_finish", Date.now() - finishStarted, {
+          dry_run: dryRun,
+        });
         setPhase("done");
         onComplete({ projects: fullProjects, inventory: inventory!, adapter: resolvedAdapter! });
       } catch (err: any) { onError(err.message); }
@@ -453,6 +488,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           failed: result.failed.length,
           cached: result.skipped,
           agent: resolvedAdapter!.name,
+          duration_ms: result.durationMs,
         });
 
         if (result.failed.length > 0) {
@@ -481,6 +517,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     } else if (input === "s") {
       // Skip failures, continue with whatever succeeded
       setProjectsToAnalyze([]);
+      setFailedProjects([]);
       finishAnalysis();
     } else if (input === "a") {
       // Switch agent and retry failed projects only
@@ -555,11 +592,19 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         <Text color="green">  {analyzed} analyzed successfully</Text>
         <Text color="red">  {failedProjects.length} failed:</Text>
         {failedProjects.slice(0, 10).map((f) => (
-          <Text key={f.project.id} dimColor>    {f.project.displayName}: {f.error.slice(0, 80)}</Text>
+          <Text key={f.project.id} dimColor>    {f.project.path}: {f.error.slice(0, 80)}</Text>
         ))}
         {failedProjects.length > 10 && <Text dimColor>    ...and {failedProjects.length - 10} more</Text>}
         <Text> </Text>
         <Text>[r] retry failed  [a] switch agent and retry  [s] skip and continue</Text>
+      </Box>
+    );
+  }
+  if (phase === "finishing") {
+    return (
+      <Box flexDirection="column">
+        <Text color="yellow" bold>Wrapping up</Text>
+        <Text dimColor>{current || "…"}</Text>
       </Box>
     );
   }

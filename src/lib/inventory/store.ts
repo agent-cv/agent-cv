@@ -196,8 +196,11 @@ export function mergeInventory(
         included: project.included, // keep user selection
         significance: project.significance, // keep score
         tier: project.tier, // keep tier
-        stars: project.stars, // keep GitHub data
+        stars: project.stars, // keep GitHub data until enrich refreshes
         isPublic: project.isPublic,
+        isFork: project.isFork,
+        githubParentFullName: project.githubParentFullName ?? updated.githubParentFullName,
+        upstreamPrCount: project.upstreamPrCount ?? updated.upstreamPrCount,
         projectGroup: updated.projectGroup, // from fresh scan (path-based)
       });
       scannedById.delete(project.id);
@@ -269,6 +272,9 @@ export function mergeCloudProjects(
       // Dedup: local project exists with same remote. Merge cloud metadata.
       existing.stars = cloud.stars ?? existing.stars;
       existing.isPublic = cloud.isPublic ?? existing.isPublic;
+      existing.isFork = cloud.isFork ?? existing.isFork;
+      existing.githubParentFullName = cloud.githubParentFullName ?? existing.githubParentFullName;
+      existing.upstreamPrCount = cloud.upstreamPrCount ?? existing.upstreamPrCount;
       existing.description = existing.description || cloud.description;
       existing.topics = existing.topics || cloud.topics;
       // Don't overwrite local analysis, path, source, etc.

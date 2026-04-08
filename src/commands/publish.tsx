@@ -149,12 +149,21 @@ export default function Publish({ args, options }: Props) {
     try {
       const payload = sanitizeForPublish(inventory!, options.bio);
       const result = await publishToApi(jwt, payload);
+      console.log("DEBUG: result.url =", JSON.stringify(result.url)); 
       await track("publish_complete", { projects: payload.inventory.projects.length });
       await flushTelemetry();
-      setResultUrl(result.url);
+      setResultUrl(result.url.replace(/\n/g, '').trim());
       setPhase("done");
-      // Wait briefly for server to process before opening browser
-      if (!options.noOpen) { setTimeout(() => { try { exec(`open "${result.url}"`); } catch {} }, 2000); }
+      // Wait for server to process before opening browser
+      if (!options.noOpen) {
+        setTimeout(() => {
+          try {
+            exec(`open ${result.url.replace(/\n/g, '').trim()}`);
+          } catch {
+            console.log(`Open manually: ${result.url}`);
+          }
+        }, 3000);
+      }
     } catch (e: any) {
       if (e.message === "AUTH_EXPIRED") {
         await writeAuthToken({ jwt: "", username: "", obtainedAt: "" });

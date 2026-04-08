@@ -125,9 +125,9 @@ export default function Generate({ args: [directory], options }: Props) {
           try {
             const payload = sanitizeForPublish(inventory);
             const pubResult = await publishToApi(auth.jwt, payload);
-            setPublishUrl(pubResult.url);
+            setPublishUrl(pubResult.url.replace(/\\n/g, '').trim());
             setPhase("published");
-            setTimeout(() => { try { exec(`open "${pubResult.url}"`); } catch {} }, 2000);
+            setTimeout(() => { try { exec(`open ${pubResult.url.trim()}`); } catch {} }, 3000);
           } catch (err: any) {
             if (err.message === "AUTH_EXPIRED") {
               setError("Session expired. Run `agent-cv publish` to re-authenticate.");
@@ -163,9 +163,9 @@ export default function Generate({ args: [directory], options }: Props) {
       if (!auth?.jwt) { setPhase("done"); return; }
       const payload = sanitizeForPublish(result.inventory);
       const pubResult = await publishToApi(auth.jwt, payload);
-      setPublishUrl(pubResult.url);
+      setPublishUrl(pubResult.url.replace(/\\n/g, '').trim());
       setPhase("published");
-      setTimeout(() => { try { exec(`open "${pubResult.url}"`); } catch {} }, 2000);
+      setTimeout(() => { try { exec(`open ${pubResult.url.trim()}`); } catch {} }, 3000);
     } catch (err: any) {
       if (err.message === "AUTH_EXPIRED") {
         setError("Session expired. Run `agent-cv publish` to re-authenticate.");

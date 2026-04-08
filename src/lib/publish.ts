@@ -24,6 +24,9 @@ export function sanitizeForPublish(
       isOwner: p.isOwner,
       significance: p.significance,
       tier: p.tier,
+      isFork: p.isFork,
+      githubParentFullName: isPublic ? p.githubParentFullName : undefined,
+      upstreamPrCount: p.upstreamPrCount,
     };
   });
   // Build socialLinks in the format the web API expects (full URLs)

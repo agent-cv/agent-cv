@@ -310,4 +310,72 @@ describe("generateProfileInsights", () => {
     const yi = result!.yearlyInsights!.find((y) => y.year === "2024");
     expect(yi!.source).toBe("metadata");
   });
+
+  test("excludes GitHub fork from highlights when owner would otherwise qualify", async () => {
+    let callCount = 0;
+    const yearly = JSON.stringify({
+      focus: "Work.",
+      skills: ["Building"],
+      domains: ["web"],
+    });
+    const aggregate = JSON.stringify({
+      bio: "Dev.",
+      narrative: "Story.",
+      strongestSkills: ["S1", "S2", "S3", "S4", "S5"],
+      uniqueTraits: ["T1", "T2", "T3"],
+    });
+    const adapter: AgentAdapter = {
+      name: "test",
+      isAvailable: async () => true,
+      analyze: async () => {
+        callCount++;
+        return {
+          summary: callCount === 1 ? yearly : aggregate,
+          techStack: [],
+          contributions: [],
+          analyzedAt: new Date().toISOString(),
+          analyzedBy: "test",
+        };
+      },
+    };
+
+    const projects = [
+      makeProject({
+        displayName: "regular",
+        dateRange: { start: "2024-01-01", end: "2024-12-01", approximate: false },
+        analysis: makeAnalysis(),
+        significance: 80,
+        tier: "primary",
+        isPublic: true,
+        isOwner: true,
+      }),
+      makeProject({
+        displayName: "other",
+        dateRange: { start: "2024-02-01", end: "2024-11-01", approximate: false },
+        analysis: makeAnalysis(),
+        significance: 70,
+        tier: "secondary",
+        isPublic: true,
+        isOwner: true,
+      }),
+      makeProject({
+        displayName: "my-fork",
+        dateRange: { start: "2024-03-01", end: "2024-10-01", approximate: false },
+        analysis: makeAnalysis(),
+        significance: 90,
+        tier: "minor",
+        isPublic: true,
+        isOwner: true,
+        isFork: true,
+        authorCommitCount: 1,
+        commitCount: 50,
+      }),
+    ];
+
+    const result = await generateProfileInsights(projects, adapter);
+    expect(result).not.toBeNull();
+    expect(result!.highlights).not.toContain("my-fork");
+    expect(result!.highlights).toContain("regular");
+    expect(result!.highlights).toContain("other");
+  });
 });

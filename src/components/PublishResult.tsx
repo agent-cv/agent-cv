@@ -12,7 +12,8 @@ export function PublishResult({ url, totalCount, analyzedCount, publicCount }: P
   return (
     <Box flexDirection="column">
       <Text> </Text>
-      <Text bold color="green">Your profile is live at <Text color="cyan">{url}</Text></Text>
+      <Text bold color="green">Your profile is live at:</Text>
+      <Text color="cyan">{url}</Text>
       <Text> </Text>
       {totalCount != null && (
         <Text color="gray">

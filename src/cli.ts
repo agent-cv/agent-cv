@@ -19,7 +19,7 @@ program
   .option("--dry-run", "Show what would be sent to the LLM without sending", false)
   .option("--all", "Skip interactive selection, analyze all projects", false)
   .option("--email <emails>", "Email(s) to filter by, for generating someone else's CV (comma-separated)")
-  .option("--github <username>", "Scan GitHub repos for this user (requires GITHUB_TOKEN env var)")
+  .option("--github <username>", "Scan GitHub repos for this user (GITHUB_TOKEN env or credentials.githubToken)")
   .option("--include-forks", "Include forked repos when scanning GitHub", false)
   .option("-i, --interactive", "Force all interactive pickers (email, projects, agent)", false)
   .option("-y, --yes", "Auto-confirm publish offer", false)
@@ -43,7 +43,7 @@ program
   .option("--all", "Skip project picker, include everything", false)
   .option("--agent <name>", "Agent to use: auto, claude, codex, cursor, api", "auto")
   .option("--email <emails>", "Email(s) to filter by (comma-separated)")
-  .option("--github <username>", "Scan GitHub repos for this user (requires GITHUB_TOKEN env var)")
+  .option("--github <username>", "Scan GitHub repos for this user (GITHUB_TOKEN env or credentials.githubToken)")
   .option("--include-forks", "Include forked repos when scanning GitHub", false)
   .option("-y, --yes", "Skip confirmation prompt", false)
   .action(async (directory: string | undefined, opts: any) => {

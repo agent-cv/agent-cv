@@ -36,11 +36,23 @@ export interface Project {
   stars?: number;
   significance?: number;
   tier?: "primary" | "secondary" | "minor";
-  /** Group name for related projects (e.g. "etherearn-app" for frontend/backend in same org) */
+  /**
+   * Group name for related projects: same parent directory (CLI scan), or same git remote
+   * namespace + repo stem when repos live in different folders (see remote-grouping.ts).
+   */
   projectGroup?: string;
   authorEmail?: string;
   /** True if user's email matches the first commit author — they created this project */
   isOwner?: boolean;
+  /** GitHub fork of another repo (your fork is still "yours" but not original work for highlight rules) */
+  isFork?: boolean;
+  /** Upstream repo full name when this is a fork (e.g. "facebook/react") — from GET /repos */
+  githubParentFullName?: string;
+  /**
+   * PRs you authored on the upstream repo (search: repo:parent is:pr author:you).
+   * Used to tell upstream contribution apart from a personal fork you develop on your own.
+   */
+  upstreamPrCount?: number;
   /** Where this project was discovered: local filesystem or cloud git hosting */
   source?: "local" | "github";
 }
@@ -80,11 +92,26 @@ export interface Socials {
   website?: string;
 }
 
+/** Fork → upstream OSS signal (see project-engagement.ts) */
+export interface OpenSourceContribution {
+  displayName: string;
+  upstream: string;
+  pullRequestCount: number;
+}
+
 export interface YearlyTheme {
   year: string;
   focus: string;
   topProjects: string[];
+  /** LLM-grouped themes for cloned/studied repos */
   exploring?: string[];
+  /**
+   * Deterministic: local clones with zero authored commits (exploration / learning).
+   * Excludes personal fork lines and upstream-OSS forks.
+   */
+  studiedProjects?: string[];
+  /** Forks with PRs merged or opened toward the parent repo (excludes personal long-running forks). */
+  openSourceContributions?: OpenSourceContribution[];
 }
 
 export interface YearlyInsight {
@@ -95,6 +122,8 @@ export interface YearlyInsight {
   domains: string[];
   achievement?: string;
   exploring?: string[];
+  studiedProjects?: string[];
+  openSourceContributions?: OpenSourceContribution[];
   source: "llm" | "metadata";
 }
 

@@ -84,6 +84,43 @@ export async function setTelemetryEnabled(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Track wall-clock duration for a named pipeline step (scan, analyze, etc.).
+ * No PII — use aggregate counts and step ids only.
+ */
+export async function trackPipelineStep(
+  step: string,
+  durationMs: number,
+  extra?: Record<string, string | number | boolean | undefined>
+): Promise<void> {
+  const properties: Record<string, string | number | boolean> = {
+    step,
+    duration_ms: durationMs,
+  };
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) {
+      if (v !== undefined) properties[k] = v as string | number | boolean;
+    }
+  }
+  await track("pipeline_step", properties);
+}
+
+/**
+ * Run an async function and record its duration as a pipeline_step event.
+ */
+export async function withPipelineTiming<T>(
+  step: string,
+  fn: () => Promise<T>,
+  extra?: Record<string, string | number | boolean | undefined>
+): Promise<T> {
+  const t0 = Date.now();
+  try {
+    return await fn();
+  } finally {
+    await trackPipelineStep(step, Date.now() - t0, extra);
+  }
+}
+
+/**
  * Track an event. No-op if telemetry is disabled.
  * Never includes PII, file paths, project names, or content.
  */

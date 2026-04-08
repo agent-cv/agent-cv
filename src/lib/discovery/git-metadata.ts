@@ -316,3 +316,13 @@ export function normalizeGitUrl(url: string): string {
   // HTTPS with .git suffix
   return url.replace(/\.git$/, "");
 }
+
+/**
+ * Parse github.com owner/repo from a normalized HTTPS remote URL.
+ */
+export function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | null {
+  const m = url.trim().match(/github\.com\/([^/]+)\/([^/#?]+)/i);
+  if (!m) return null;
+  return { owner: m[1]!, repo: m[2]!.replace(/\.git$/i, "") };
+}
+
