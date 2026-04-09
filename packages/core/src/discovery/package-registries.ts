@@ -4,13 +4,7 @@
  * Best-effort: failures are logged, never block the pipeline.
  */
 
-export interface PublishedPackage {
-  name: string;
-  description: string;
-  registry: "npm" | "pypi" | "crates";
-  url: string;
-  version?: string;
-}
+import type { PublishedPackage } from "../types.ts";
 
 /**
  * Search all registries for packages by a user.

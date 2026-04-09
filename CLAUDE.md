@@ -17,3 +17,7 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+## CLI / agent onboarding
+
+When changing the Ink CLI, auth, or pipeline wiring: read **[`CONTRIBUTING.md`](CONTRIBUTING.md)** (CLI architecture) then **[`src/commands/README.md`](src/commands/README.md)**. Core logic belongs in **`packages/core`**; command orchestration lives in **`src/commands/<name>/`** (colocated `*.machine.ts` + `*.tsx`).

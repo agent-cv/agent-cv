@@ -232,7 +232,7 @@ The gstack skill also expects: per-section interactive decisions, `gstack-review
 
 | Topic | Why it matters |
 |-------|----------------|
-| **Package naming** | Root [`package.json`](package.json) is `agent-cv`; repo folder is `llm-cv`. For workspaces, pick **`@agent-cv/core`** (or another scope) and document it once. |
+| **Package naming** | Root [`package.json`](package.json) is `agent-cv`; repo folder matches (`agent-cv`). For workspaces, pick **`@agent-cv/core`** (or another scope) and document it once. |
 | **`packages/core` public API** | Decide what is exported semver-stable vs internal. Telemetry ([`src/lib/telemetry.ts`](src/lib/telemetry.ts)): inject from CLI or optional peer — avoid core → PostHog coupling if core must stay headless. |
 | **Publishing `core`** | If `@agent-cv/core` ships to npm separately, add version policy and **changesets** or manual bump; aligns with Phase E. |
 | **Semver / breaking changes** | Monorepo split may change import paths for contributors; note in CHANGELOG or ONBOARDING one-liner. |

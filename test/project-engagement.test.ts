@@ -8,7 +8,7 @@ import {
   studiedProjectsByYear,
   openSourceContributionsByYear,
   PERSONAL_FORK_AUTHOR_COMMIT_THRESHOLD,
-} from "@agent-cv/core/src/discovery/project-engagement.ts";
+} from "@agent-cv/core/src/insights/project-engagement.ts";
 
 function base(overrides: Partial<Project> = {}): Project {
   return {

@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import type { Inventory, InventoryProfile, ProfileInsights, Project } from "../types.ts";
-import type { PublishedPackage } from "../discovery/package-registries.ts";
+import type { PublishedPackage } from "../types.ts";
 
 const publishedPackageSchema: z.ZodType<PublishedPackage> = z.object({
   name: z.string(),

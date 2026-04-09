@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { resolveAdapter } from "@agent-cv/core/src/analysis/resolve-adapter.ts";
+import { resolveAdapter } from "@agent-cv/core/src/analysis/adapters/resolve-adapter.ts";
 
 describe("resolveAdapter", () => {
   test("auto resolves to an available adapter", async () => {

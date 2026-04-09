@@ -3,7 +3,7 @@ import {
   generateProfileInsights,
   detectDomains,
   type YearlyInsight,
-} from "@agent-cv/core/src/analysis/bio-generator.ts";
+} from "@agent-cv/core/src/insights/bio-generator.ts";
 import type { AgentAdapter, Project, ProjectAnalysis, ProjectContext } from "@agent-cv/core/src/types.ts";
 
 function makeProject(overrides: Partial<Project> = {}): Project {

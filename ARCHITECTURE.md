@@ -150,7 +150,7 @@ cwd is undefined in rawPrompt mode to prevent agents reading files.
 ## Web Architecture
 
 ```
-CLI publishes to:  POST /api/publish on agent-cv.dev
+CLI publishes via tRPC:  POST /api/trpc (publish.upsert) on agent-cv.dev
   ├── inventory → data.json (projects with tiers, stars, analysis)
   ├── profile  → profile.json (bio, skills, yearlyThemes)
   └── meta     → meta.json (username, avatar, timestamps)

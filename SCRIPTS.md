@@ -63,7 +63,7 @@ The script automatically calculates:
 ```bash
 Using model: Claude 3 Haiku ($0.25/M tokens)
 Loaded inventory with 25 projects
-Generating insights for: llm-cv
+Generating insights for: agent-cv
 Generating insights for: agent-cv-web
 ...
 

@@ -4,8 +4,8 @@ import { Text, Box, useInput, useStdout } from "ink";
 import { createHash } from "node:crypto";
 import { resolve as resolvePath } from "node:path";
 import { readInventory, writeInventory } from "@agent-cv/core/src/inventory/store.ts";
-import { resolveAdapter } from "@agent-cv/core/src/analysis/resolve-adapter.ts";
-import { generateProfileInsights } from "@agent-cv/core/src/analysis/bio-generator.ts";
+import { resolveAdapter } from "@agent-cv/core/src/analysis/adapters/resolve-adapter.ts";
+import { generateProfileInsights } from "@agent-cv/core/src/insights/bio-generator.ts";
 import { ProjectSelector } from "./ProjectSelector.tsx";
 import { EmailPicker } from "./EmailPicker.tsx";
 import { AgentPicker } from "./AgentPicker.tsx";
@@ -30,6 +30,11 @@ import {
   type Phase,
 } from "../pipeline/phase-machine.ts";
 
+/**
+ * Long-running scan/analyze UI. Phase orchestration is `pipelinePhaseMachine` (XState).
+ * `setPhase` below forwards to `send(gotoPhaseEvent(...))` with `isValidPhaseTransition` —
+ * it is not a separate React `useState` phase model (see CONTRIBUTING.md, “CLI architecture”).
+ */
 export interface PipelineOptions {
   directory: string;
   all?: boolean;
@@ -301,7 +306,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     const savedAgent = inventory?.lastAgent;
     if (!savedAgent) return false;
     try {
-      const { getAdapterByName } = await import("@agent-cv/core/src/analysis/resolve-adapter.ts");
+      const { getAdapterByName } = await import("@agent-cv/core/src/analysis/adapters/resolve-adapter.ts");
       const adapter = getAdapterByName(savedAgent);
       if (adapter && await adapter.isAvailable()) {
         setCurrent(`Using ${savedAgent}`);

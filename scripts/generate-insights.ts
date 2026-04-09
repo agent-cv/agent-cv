@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { generateProfileInsights } from "@agent-cv/core/src/analysis/bio-generator.ts";
-import { resolveAdapter } from "@agent-cv/core/src/analysis/resolve-adapter.ts";
+import { generateProfileInsights } from "@agent-cv/core/src/insights/bio-generator.ts";
+import { resolveAdapter } from "@agent-cv/core/src/analysis/adapters/resolve-adapter.ts";
 
 interface OpenRouterModel {
   name: string;

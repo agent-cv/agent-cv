@@ -71,13 +71,13 @@ describe("Pipeline (integration, mocked core)", () => {
       }),
     }));
 
-    mock.module("@agent-cv/core/src/analysis/resolve-adapter.ts", () => ({
+    mock.module("@agent-cv/core/src/analysis/adapters/resolve-adapter.ts", () => ({
       resolveAdapter: async () => {
         throw new Error("not used in this test");
       },
     }));
 
-    mock.module("@agent-cv/core/src/analysis/bio-generator.ts", () => ({
+    mock.module("@agent-cv/core/src/insights/bio-generator.ts", () => ({
       generateProfileInsights: async () => null,
     }));
 

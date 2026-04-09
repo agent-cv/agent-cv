@@ -23,7 +23,7 @@ export class GitHubClient {
 
   /** Create client with token from GITHUB_TOKEN env or saved credentials (see resolveGitHubToken). */
   static async create(): Promise<GitHubClient> {
-    const { resolveGitHubToken } = await import("../credentials.ts");
+    const { resolveGitHubToken } = await import("../auth/credentials.ts");
     const token = await resolveGitHubToken();
     return new GitHubClient(token || undefined);
   }

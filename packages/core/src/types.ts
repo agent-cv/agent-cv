@@ -3,7 +3,14 @@
  * These are framework-agnostic — no React/Ink imports here.
  */
 
-import type { PublishedPackage } from "./discovery/package-registries.ts";
+/** Package found on a public registry (npm, PyPI, crates.io). Used by discovery and inventory. */
+export interface PublishedPackage {
+  name: string;
+  description: string;
+  registry: "npm" | "pypi" | "crates";
+  url: string;
+  version?: string;
+}
 
 export interface Project {
   id: string;
@@ -94,7 +101,7 @@ export interface Socials {
   website?: string;
 }
 
-/** Fork → upstream OSS signal (see project-engagement.ts) */
+/** Fork → upstream OSS signal (see insights/project-engagement.ts) */
 export interface OpenSourceContribution {
   displayName: string;
   upstream: string;

@@ -102,6 +102,7 @@ agent-cv generate ~/Projects
 |---------|-------------|
 | `agent-cv generate <dir>` | Full flow: scan → pick emails → pick projects → analyze → CV |
 | `agent-cv publish [dir]` | Publish your portfolio to [agent-cv.dev](https://agent-cv.dev) |
+| `agent-cv login` | Sign in with GitHub and save credentials locally (no publish) |
 | `agent-cv unpublish` | Remove your portfolio from agent-cv.dev |
 | `agent-cv config` | Edit your profile: name, bio, socials, email privacy |
 | `agent-cv diff [dir]` | Show new/updated/removed projects since last scan |

@@ -33,7 +33,7 @@ function makeInventory(projects: Array<{ remoteUrl?: string }>): Inventory {
 describe("detectGitHubUsername", () => {
   it("extracts username from HTTPS remoteUrls", () => {
     const inv = makeInventory([
-      { remoteUrl: "https://github.com/beautyfree/llm-cv" },
+      { remoteUrl: "https://github.com/beautyfree/agent-cv" },
       { remoteUrl: "https://github.com/beautyfree/other-repo" },
     ]);
     expect(detectGitHubUsername(inv)).toBe("beautyfree");
