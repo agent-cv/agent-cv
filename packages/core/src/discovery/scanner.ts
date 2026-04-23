@@ -3,12 +3,7 @@ import simpleGit from "simple-git";
 import { join, basename, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { Project } from "../types.ts";
-import {
-  extractGitMetadata,
-  extractRemoteUrl,
-  collectUserEmails,
-  discoverRepoLocalEmail,
-} from "./git-metadata.ts";
+import { extractGitMetadata, extractRemoteUrl, collectUserEmails, discoverRepoLocalEmail } from "./git-metadata.ts";
 import { scanForSecrets } from "./privacy-auditor.ts";
 
 /**
@@ -70,6 +65,8 @@ export interface ScanOptions {
   onProjectFound?: (project: Project, total: number) => void;
   /** Called when entering a new directory */
   onDirectoryEnter?: (dir: string) => void;
+  /** When aborted, walk stops and the scan rejects with AbortError */
+  signal?: AbortSignal;
 }
 
 export interface ScanResult {
@@ -82,11 +79,8 @@ export interface ScanResult {
  * Detects projects by filesystem markers, extracts metadata.
  * Zero LLM calls — git only for dates/author.
  */
-export async function scanDirectory(
-  rootPath: string,
-  options: ScanOptions = {}
-): Promise<ScanResult> {
-  const { maxDepth = 5, verbose = false, emails = [], onProjectFound, onDirectoryEnter } = options;
+export async function scanDirectory(rootPath: string, options: ScanOptions = {}): Promise<ScanResult> {
+  const { maxDepth = 5, verbose = false, emails = [], onProjectFound, onDirectoryEnter, signal } = options;
   const absRoot = resolve(rootPath);
   const projects: Project[] = [];
   const errors: Array<{ path: string; error: string }> = [];
@@ -97,10 +91,12 @@ export async function scanDirectory(
   if (verbose && userEmails.size > 0) {
     console.error(`  Git identities: ${[...userEmails].join(", ")}`);
   }
+  signal?.throwIfAborted();
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (depth > maxDepth) return;
 
+    signal?.throwIfAborted();
     onDirectoryEnter?.(dir);
 
     let entries;
@@ -134,15 +130,11 @@ export async function scanDirectory(
     }
 
     // Also check for .git as a standalone indicator
-    const hasGit = entries.some(
-      (e) => e.name === ".git" && (e.isDirectory() || e.isFile())
-    );
+    const hasGit = entries.some((e) => e.name === ".git" && (e.isDirectory() || e.isFile()));
 
     if (primaryMarker || hasGit) {
       // Nested project dedup: skip if a parent is already a project
-      const isNested = [...foundProjectPaths].some((pp) =>
-        dir.startsWith(pp + "/")
-      );
+      const isNested = [...foundProjectPaths].some((pp) => dir.startsWith(pp + "/"));
       if (!isNested) {
         foundProjectPaths.add(dir);
 
@@ -153,13 +145,7 @@ export async function scanDirectory(
             if (localEmail) userEmails.add(localEmail);
           }
 
-          const project = await buildProject(
-            dir,
-            primaryMarker,
-            detectedMarkers,
-            hasGit,
-            userEmails
-          );
+          const project = await buildProject(dir, primaryMarker, detectedMarkers, hasGit, userEmails);
           projects.push(project);
           onProjectFound?.(project, projects.length);
           if (verbose) {
@@ -181,6 +167,7 @@ export async function scanDirectory(
       if (IGNORE_DIRS.has(entry.name)) continue;
       if (entry.name.startsWith(".") && entry.name !== ".git") continue;
 
+      signal?.throwIfAborted();
       await walk(join(dir, entry.name), depth + 1);
     }
   }
@@ -224,38 +211,66 @@ async function buildProject(
         language = "TypeScript";
       }
       for (const [dep, fw] of [
-        ["react", "React"], ["vue", "Vue"], ["svelte", "Svelte"],
-        ["@angular/core", "Angular"], ["next", "Next.js"], ["nuxt", "Nuxt"],
-        ["express", "Express"], ["fastify", "Fastify"], ["nest", "NestJS"],
-        ["electron", "Electron"], ["hono", "Hono"], ["elysia", "Elysia"],
-        ["astro", "Astro"], ["remix", "Remix"], ["solid-js", "Solid"],
-        ["@tanstack/react-query", "TanStack Query"], ["prisma", "Prisma"],
-        ["drizzle-orm", "Drizzle"], ["trpc", "tRPC"], ["@trpc/server", "tRPC"],
+        ["react", "React"],
+        ["vue", "Vue"],
+        ["svelte", "Svelte"],
+        ["@angular/core", "Angular"],
+        ["next", "Next.js"],
+        ["nuxt", "Nuxt"],
+        ["express", "Express"],
+        ["fastify", "Fastify"],
+        ["nest", "NestJS"],
+        ["electron", "Electron"],
+        ["hono", "Hono"],
+        ["elysia", "Elysia"],
+        ["astro", "Astro"],
+        ["remix", "Remix"],
+        ["solid-js", "Solid"],
+        ["@tanstack/react-query", "TanStack Query"],
+        ["prisma", "Prisma"],
+        ["drizzle-orm", "Drizzle"],
+        ["trpc", "tRPC"],
+        ["@trpc/server", "tRPC"],
       ] as const) {
         if (allDeps?.[dep]) frameworks.push(fw);
       }
       if (pkg.description) description = pkg.description;
       if (Array.isArray(pkg.keywords)) topics = pkg.keywords;
       if (pkg.license) license = pkg.license;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   } else if (type === "python") {
     try {
       const content = await readFile(join(dir, "requirements.txt"), "utf-8").catch(() => "");
       for (const [pattern, fw] of [
-        ["django", "Django"], ["flask", "Flask"], ["fastapi", "FastAPI"],
-        ["celery", "Celery"], ["sqlalchemy", "SQLAlchemy"], ["pandas", "Pandas"],
-        ["numpy", "NumPy"], ["torch", "PyTorch"], ["tensorflow", "TensorFlow"],
+        ["django", "Django"],
+        ["flask", "Flask"],
+        ["fastapi", "FastAPI"],
+        ["celery", "Celery"],
+        ["sqlalchemy", "SQLAlchemy"],
+        ["pandas", "Pandas"],
+        ["numpy", "NumPy"],
+        ["torch", "PyTorch"],
+        ["tensorflow", "TensorFlow"],
       ] as const) {
         if (content.toLowerCase().includes(pattern)) frameworks.push(fw);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   } else if (type === "rust") {
     try {
       const content = await readFile(join(dir, "Cargo.toml"), "utf-8").catch(() => "");
       for (const [pattern, fw] of [
-        ["actix", "Actix"], ["tokio", "Tokio"], ["axum", "Axum"],
-        ["serde", "Serde"], ["warp", "Warp"], ["rocket", "Rocket"],
-        ["tauri", "Tauri"], ["bevy", "Bevy"],
+        ["actix", "Actix"],
+        ["tokio", "Tokio"],
+        ["axum", "Axum"],
+        ["serde", "Serde"],
+        ["warp", "Warp"],
+        ["rocket", "Rocket"],
+        ["tauri", "Tauri"],
+        ["bevy", "Bevy"],
       ] as const) {
         if (content.toLowerCase().includes(pattern)) frameworks.push(fw);
       }
@@ -263,31 +278,40 @@ async function buildProject(
       if (descMatch?.[1]) description = descMatch[1];
       const licMatch = content.match(/license\s*=\s*"([^"]+)"/);
       if (licMatch?.[1]) license = licMatch[1];
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   } else if (type === "go") {
     try {
       const content = await readFile(join(dir, "go.mod"), "utf-8").catch(() => "");
       for (const [pattern, fw] of [
-        ["gin-gonic", "Gin"], ["gofiber", "Fiber"], ["echo", "Echo"],
-        ["gorilla/mux", "Gorilla"], ["grpc", "gRPC"],
+        ["gin-gonic", "Gin"],
+        ["gofiber", "Fiber"],
+        ["echo", "Echo"],
+        ["gorilla/mux", "Gorilla"],
+        ["grpc", "gRPC"],
       ] as const) {
         if (content.includes(pattern)) frameworks.push(fw);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // License fallback: check for LICENSE file
   if (!license) {
     try {
-      const licContent = await readFile(join(dir, "LICENSE"), "utf-8").catch(
-        () => readFile(join(dir, "LICENSE.md"), "utf-8").catch(() => "")
+      const licContent = await readFile(join(dir, "LICENSE"), "utf-8").catch(() =>
+        readFile(join(dir, "LICENSE.md"), "utf-8").catch(() => "")
       );
       if (licContent.includes("MIT")) license = "MIT";
       else if (licContent.includes("Apache")) license = "Apache-2.0";
       else if (licContent.includes("GPL")) license = "GPL";
       else if (licContent.includes("BSD")) license = "BSD";
       else if (licContent.length > 0) license = "Other";
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Fallback: detect language by file extensions if still Unknown
@@ -346,18 +370,30 @@ async function buildProject(
       fileCount = fileList.length;
       // Count lines (fast: use git's built-in)
       try {
-        const stats = await git.raw(["diff", "--stat", "--diff-filter=ACMR", "4b825dc642cb6eb9a060e54bf899d15f3f338fb9", "HEAD"]);
+        const stats = await git.raw([
+          "diff",
+          "--stat",
+          "--diff-filter=ACMR",
+          "4b825dc642cb6eb9a060e54bf899d15f3f338fb9",
+          "HEAD",
+        ]);
         const lastLine = stats.trim().split("\n").pop() || "";
         const insMatch = lastLine.match(/(\d+) insertion/);
         if (insMatch) lineCount = parseInt(insMatch[1]!, 10);
-      } catch { /* no commits */ }
-    } catch { /* fallback */ }
+      } catch {
+        /* no commits */
+      }
+    } catch {
+      /* fallback */
+    }
   }
   if (fileCount === 0) {
     try {
       const entries = await readdir(dir, { withFileTypes: true });
       fileCount = entries.filter((e) => e.isFile()).length;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   let remoteUrl: string | undefined;
@@ -379,9 +415,7 @@ async function buildProject(
     authorCommitCount: gitMeta?.authorCommits ?? 0,
     hasUncommittedChanges: gitMeta?.hasUncommittedChanges ?? false,
     lastCommit: gitMeta?.lastCommitDate,
-    markers: hasGit
-      ? [...detectedMarkers, ".git"]
-      : detectedMarkers,
+    markers: hasGit ? [...detectedMarkers, ".git"] : detectedMarkers,
     size: { files: fileCount, lines: lineCount },
     description,
     topics: topics.length > 0 ? topics : undefined,
@@ -391,9 +425,7 @@ async function buildProject(
     included: true,
     remoteUrl,
     authorEmail: gitMeta?.authorEmail,
-    isOwner: gitMeta?.firstCommitAuthorEmail
-      ? userEmails.has(gitMeta.firstCommitAuthorEmail)
-      : !hasGit, // no git = user created this folder
+    isOwner: gitMeta?.firstCommitAuthorEmail ? userEmails.has(gitMeta.firstCommitAuthorEmail) : !hasGit, // no git = user created this folder
   };
 }
 
@@ -427,7 +459,9 @@ async function getFileDates(dir: string): Promise<{ start: string; end: string }
         const mtime = s.mtime.getTime();
         if (birth < minBirth) minBirth = birth;
         if (mtime > maxMtime) maxMtime = mtime;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
 
     if (minBirth === Infinity) return { start: "", end: "" };
@@ -441,25 +475,39 @@ async function getFileDates(dir: string): Promise<{ start: string; end: string }
 }
 
 const EXT_TO_LANG: Record<string, string> = {
-  ".ts": "TypeScript", ".tsx": "TypeScript",
-  ".js": "JavaScript", ".jsx": "JavaScript", ".mjs": "JavaScript",
+  ".ts": "TypeScript",
+  ".tsx": "TypeScript",
+  ".js": "JavaScript",
+  ".jsx": "JavaScript",
+  ".mjs": "JavaScript",
   ".py": "Python",
   ".rs": "Rust",
   ".go": "Go",
   ".rb": "Ruby",
-  ".java": "Java", ".kt": "Kotlin",
+  ".java": "Java",
+  ".kt": "Kotlin",
   ".swift": "Swift",
   ".cs": "C#",
-  ".cpp": "C++", ".cc": "C++", ".c": "C", ".h": "C",
+  ".cpp": "C++",
+  ".cc": "C++",
+  ".c": "C",
+  ".h": "C",
   ".php": "PHP",
-  ".ex": "Elixir", ".exs": "Elixir",
+  ".ex": "Elixir",
+  ".exs": "Elixir",
   ".dart": "Dart",
   ".lua": "Lua",
-  ".sh": "Shell", ".bash": "Shell", ".zsh": "Shell",
-  ".yml": "YAML", ".yaml": "YAML",
+  ".sh": "Shell",
+  ".bash": "Shell",
+  ".zsh": "Shell",
+  ".yml": "YAML",
+  ".yaml": "YAML",
   ".sol": "Solidity",
-  ".html": "HTML", ".htm": "HTML",
-  ".css": "CSS", ".scss": "CSS", ".less": "CSS",
+  ".html": "HTML",
+  ".htm": "HTML",
+  ".css": "CSS",
+  ".scss": "CSS",
+  ".less": "CSS",
   ".vue": "Vue",
   ".svelte": "Svelte",
   ".fc": "FunC",
@@ -480,7 +528,17 @@ const EXT_TO_LANG: Record<string, string> = {
 async function detectLanguageByFiles(dir: string): Promise<string> {
   try {
     const counts = new Map<string, number>();
-    const SKIP = new Set(["node_modules", ".git", "dist", "build", "target", "__pycache__", ".next", "vendor", ".turbo"]);
+    const SKIP = new Set([
+      "node_modules",
+      ".git",
+      "dist",
+      "build",
+      "target",
+      "__pycache__",
+      ".next",
+      "vendor",
+      ".turbo",
+    ]);
 
     // Walk up to 3 levels deep to find code files
     async function walk(d: string, depth: number) {
@@ -506,7 +564,10 @@ async function detectLanguageByFiles(dir: string): Promise<string> {
     let best = "Unknown";
     let bestCount = 0;
     for (const [lang, count] of counts) {
-      if (count > bestCount) { best = lang; bestCount = count; }
+      if (count > bestCount) {
+        best = lang;
+        bestCount = count;
+      }
     }
     return best;
   } catch {

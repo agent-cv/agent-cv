@@ -74,4 +74,12 @@ describe("scanDirectory", () => {
     expect(project.privacyAudit!.secretsFound).toBeGreaterThan(0);
     expect(project.privacyAudit!.excludedFiles).toContain(".env");
   });
+
+  test("rejects with AbortError when signal is already aborted", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    await expect(scanDirectory(join(FIXTURES, "sample-node-project"), { signal: ac.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
 });

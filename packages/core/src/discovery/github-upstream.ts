@@ -19,7 +19,8 @@ interface SearchIssuesResponse {
 export async function enrichUpstreamPullRequestCounts(
   projects: Project[],
   client: GitHubClient,
-  githubLogin: string | undefined
+  githubLogin: string | undefined,
+  signal?: AbortSignal
 ): Promise<void> {
   const login = githubLogin?.trim();
   if (!login) return;
@@ -27,13 +28,11 @@ export async function enrichUpstreamPullRequestCounts(
   const cache = new Map<string, number>();
 
   const forksNeedingCount = projects.filter(
-    (p) =>
-      p.isFork &&
-      p.githubParentFullName &&
-      p.remoteUrl?.includes("github.com")
+    (p) => p.isFork && p.githubParentFullName && p.remoteUrl?.includes("github.com")
   );
 
   for (const p of forksNeedingCount) {
+    signal?.throwIfAborted();
     const parent = p.githubParentFullName!;
     const key = `${parent.toLowerCase()}::${login.toLowerCase()}`;
     if (cache.has(key)) {

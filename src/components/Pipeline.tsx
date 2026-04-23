@@ -23,12 +23,10 @@ import type { Project, Inventory, AgentAdapter } from "@agent-cv/core/src/types.
 import { markNoticeSeen, track, trackPipelineStep } from "@agent-cv/core/src/telemetry.ts";
 import { detectGitHubUsername } from "@agent-cv/core/src/discovery/github-scanner.ts";
 import { mergeGitHubCloudIntoScanResult } from "@agent-cv/core/src/pipeline/github-cloud-phase.ts";
-import {
-  pipelinePhaseMachine,
-  gotoPhaseEvent,
-  isValidPhaseTransition,
-  type Phase,
-} from "../pipeline/phase-machine.ts";
+import { pipelinePhaseMachine, gotoPhaseEvent, isValidPhaseTransition, type Phase } from "../pipeline/phase-machine.ts";
+
+/** Ink attaches stdin raw mode only while some `useInput` is active; otherwise Ctrl+C never reaches `exitOnCtrlC`. */
+const PIPELINE_PHASES_PASSIVE_STDIN = new Set<Phase>(["scanning", "recounting", "analyzing", "finishing"]);
 
 /**
  * Long-running scan/analyze UI. Phase orchestration is `pipelinePhaseMachine` (XState).
@@ -64,7 +62,17 @@ interface Props {
  * Commands provide onComplete to do their specific thing with the results.
  */
 export function Pipeline({ options, onComplete, onError }: Props) {
-  const { directory, all: selectAll, email, agent = "auto", noCache, dryRun, github: githubUsername, includeForks, interactive } = options;
+  const {
+    directory,
+    all: selectAll,
+    email,
+    agent = "auto",
+    noCache,
+    dryRun,
+    github: githubUsername,
+    includeForks,
+    interactive,
+  } = options;
 
   const { write } = useStdout();
   const pipelineMachineInput = useMemo(
@@ -122,21 +130,31 @@ export function Pipeline({ options, onComplete, onError }: Props) {
   // Analysis progress
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [current, setCurrent] = useState("");
-  const [projectStatuses, setProjectStatuses] = useState<Map<string, { status: ProjectStatus; detail?: string }>>(new Map());
+  const [projectStatuses, setProjectStatuses] = useState<Map<string, { status: ProjectStatus; detail?: string }>>(
+    new Map()
+  );
 
   // Phase 1: Scan
   const scanningRef = useRef(false);
   useEffect(() => {
-    if (phase !== "scanning") { scanningRef.current = false; return; }
+    if (phase !== "scanning") {
+      scanningRef.current = false;
+      return;
+    }
     if (scanningRef.current) return;
     scanningRef.current = true;
+
+    const scanAbort = new AbortController();
+
     async function scan() {
       const phaseScanStarted = Date.now();
       try {
         await track("command_start", { command: "pipeline" });
         const existingInv = await readInventory();
         const absDir = resolvePath(directory);
-        const prevCount = existingInv.projects.filter((p) => !p.tags.includes("removed") && p.path.startsWith(absDir)).length;
+        const prevCount = existingInv.projects.filter(
+          (p) => !p.tags.includes("removed") && p.path.startsWith(absDir)
+        ).length;
         setPrevProjectCount(prevCount);
         const scanState = { count: 0, last: "" };
         const result = await scanAndMerge(
@@ -153,7 +171,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
               }
             },
           },
-          { skipGitHubEnrich: dryRun }
+          { skipGitHubEnrich: dryRun, signal: scanAbort.signal }
         );
         // Final update with latest values
         setScanCount(scanState.count);
@@ -179,6 +197,7 @@ export function Pipeline({ options, onComplete, onError }: Props) {
               projects: result.projects,
               ghUser,
               includeForks,
+              signal: scanAbort.signal,
             },
             {
               onStatus: setCurrent,
@@ -244,28 +263,42 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         await reportPhaseScan("to_email_picker");
         setPhase("picking-emails");
       } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return;
+        }
         await trackPipelineStep("phase_scan", Date.now() - phaseScanStarted, { outcome: "error" });
         onError(err.message);
+      } finally {
+        scanningRef.current = false;
       }
     }
-    scan();
+    void scan();
+    return () => {
+      scanAbort.abort();
+    };
   }, [phase, directory, email, dryRun, githubUsername, includeForks, interactive, agent]);
 
   // Email picker
-  const handleEmailPick = useCallback(async (selected: string[], save: boolean) => {
-    setConfirmedEmails(selected);
-    if (save && inventory) {
-      inventory.profile.emails = selected;
-      inventory.profile.emailsConfirmed = true;
-      await writeInventory(inventory);
-    }
-    setPhase("recounting");
-  }, [inventory]);
+  const handleEmailPick = useCallback(
+    async (selected: string[], save: boolean) => {
+      setConfirmedEmails(selected);
+      if (save && inventory) {
+        inventory.profile.emails = selected;
+        inventory.profile.emailsConfirmed = true;
+        await writeInventory(inventory);
+      }
+      setPhase("recounting");
+    },
+    [inventory]
+  );
 
   // Phase 2: Recount
   const recountingRef = useRef(false);
   useEffect(() => {
-    if (phase !== "recounting") { recountingRef.current = false; return; }
+    if (phase !== "recounting") {
+      recountingRef.current = false;
+      return;
+    }
     if (recountingRef.current) return;
     recountingRef.current = true;
     async function recount() {
@@ -273,8 +306,10 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         const updated = await recountAndTag(allProjects, confirmedEmails);
         setAllProjects(updated);
         if (inventory) await writeInventory(inventory);
-        if (selectAll) { setSelectedProjects(updated); setPhase("picking-agent"); }
-        else {
+        if (selectAll) {
+          setSelectedProjects(updated);
+          setPhase("picking-agent");
+        } else {
           // Smart skip: use saved selections if no new projects
           const skips = shouldSkipPhases(inventory!, updated, { interactive, agent });
           if (skips.skipSelector) {
@@ -287,15 +322,19 @@ export function Pipeline({ options, onComplete, onError }: Props) {
                 const { adapter } = await resolveAdapter(agent);
                 setResolvedAdapter(adapter);
                 setPhase("analyzing");
-              } catch (err: any) { onError(err.message); }
+              } catch (err: any) {
+                onError(err.message);
+              }
             } else {
-              await trySkipAgent() || setPhase("picking-agent");
+              (await trySkipAgent()) || setPhase("picking-agent");
             }
           } else {
             setPhase("selecting");
           }
         }
-      } catch (err: any) { onError(err.message); }
+      } catch (err: any) {
+        onError(err.message);
+      }
     }
     recount();
   }, [phase]);
@@ -308,47 +347,60 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     try {
       const { getAdapterByName } = await import("@agent-cv/core/src/analysis/adapters/resolve-adapter.ts");
       const adapter = getAdapterByName(savedAgent);
-      if (adapter && await adapter.isAvailable()) {
+      if (adapter && (await adapter.isAvailable())) {
         setCurrent(`Using ${savedAgent}`);
         setResolvedAdapter(adapter);
         setPhase("analyzing");
         return true;
       }
-    } catch { /* agent unavailable, show picker */ }
+    } catch {
+      /* agent unavailable, show picker */
+    }
     return false;
   }
 
   // Project selection — save included/excluded to inventory
-  const handleSelection = useCallback(async (selected: Project[]) => {
-    if (selected.length === 0) { onError("No projects selected."); return; }
-    const selectedIds = new Set(selected.map((p) => p.id));
-    for (const p of allProjects) {
-      p.included = selectedIds.has(p.id);
-      p.tags = p.tags.filter((t) => t !== "new");
-    }
-    if (inventory) await writeInventory(inventory);
-    setSelectedProjects(selected);
-    if (agent !== "auto") {
-      try {
-        const { adapter } = await resolveAdapter(agent);
-        setResolvedAdapter(adapter);
-        setPhase("analyzing");
-      } catch (err: any) { onError(err.message); }
-      return;
-    }
-    // Smart skip: use saved agent if still available
-    await trySkipAgent() || setPhase("picking-agent");
-  }, [agent]);
+  const handleSelection = useCallback(
+    async (selected: Project[]) => {
+      if (selected.length === 0) {
+        onError("No projects selected.");
+        return;
+      }
+      const selectedIds = new Set(selected.map((p) => p.id));
+      for (const p of allProjects) {
+        p.included = selectedIds.has(p.id);
+        p.tags = p.tags.filter((t) => t !== "new");
+      }
+      if (inventory) await writeInventory(inventory);
+      setSelectedProjects(selected);
+      if (agent !== "auto") {
+        try {
+          const { adapter } = await resolveAdapter(agent);
+          setResolvedAdapter(adapter);
+          setPhase("analyzing");
+        } catch (err: any) {
+          onError(err.message);
+        }
+        return;
+      }
+      // Smart skip: use saved agent if still available
+      (await trySkipAgent()) || setPhase("picking-agent");
+    },
+    [agent]
+  );
 
   // Agent picker — save choice to inventory
-  const handleAgentPick = useCallback(async (adapter: AgentAdapter, name: string) => {
-    if (inventory) {
-      inventory.lastAgent = name;
-      await writeInventory(inventory);
-    }
-    setResolvedAdapter(adapter);
-    setPhase("analyzing");
-  }, [inventory]);
+  const handleAgentPick = useCallback(
+    async (adapter: AgentAdapter, name: string) => {
+      if (inventory) {
+        inventory.lastAgent = name;
+        await writeInventory(inventory);
+      }
+      setResolvedAdapter(adapter);
+      setPhase("analyzing");
+    },
+    [inventory]
+  );
 
   const handleAgentBack = useCallback(() => {
     setPhase("selecting");
@@ -383,11 +435,17 @@ export function Pipeline({ options, onComplete, onError }: Props) {
           const tiersById = new Map(tiers);
           for (const p of inventory.projects) {
             const info = tiersById.get(p.id);
-            if (info) { p.significance = info.score; p.tier = info.tier; }
+            if (info) {
+              p.significance = info.score;
+              p.tier = info.tier;
+            }
           }
           for (const p of fullProjects) {
             const info = tiersById.get(p.id);
-            if (info) { p.significance = info.score; p.tier = info.tier; }
+            if (info) {
+              p.significance = info.score;
+              p.tier = info.tier;
+            }
           }
           await writeInventory(inventory);
         }
@@ -396,12 +454,19 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         if (!dryRun && inventory) {
           const analyzed = fullProjects.filter((p) => p.analysis);
           const fingerprint = createHash("md5")
-            .update(analyzed.map((p) => `${p.id}:${p.analysis?.analyzedAt}:${p.significance}`).sort().join("|"))
+            .update(
+              analyzed
+                .map((p) => `${p.id}:${p.analysis?.analyzedAt}:${p.significance}`)
+                .sort()
+                .join("|")
+            )
             .digest("hex");
 
           if (fingerprint !== (inventory.insights?._fingerprint ?? "")) {
             try {
-              const insights = await generateProfileInsights(fullProjects, resolvedAdapter!, (step) => setCurrent(step));
+              const insights = await generateProfileInsights(fullProjects, resolvedAdapter!, (step) =>
+                setCurrent(step)
+              );
               if (insights) {
                 inventory.insights = { ...insights, _fingerprint: fingerprint };
               }
@@ -421,18 +486,33 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         });
         setPhase("done");
         onComplete({ projects: fullProjects, inventory: inventory!, adapter: resolvedAdapter! });
-      } catch (err: any) { onError(err.message); }
+      } catch (err: any) {
+        onError(err.message);
+      }
     }
     finish();
   }
 
   // Phase 3: Analyze
   const analyzingRef = useRef(false);
+  const abortAnalyzeRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    if (phase !== "analyzing") { analyzingRef.current = false; return; }
+    return () => {
+      abortAnalyzeRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "analyzing") {
+      analyzingRef.current = false;
+      return;
+    }
     if (!resolvedAdapter || analyzingRef.current) return;
     analyzingRef.current = true;
     async function run() {
+      const ac = new AbortController();
+      abortAnalyzeRef.current = ac;
       try {
         // On first run, projectsToAnalyze is empty — use selectedProjects
         const toAnalyze = projectsToAnalyze.length > 0 ? projectsToAnalyze : selectedProjects;
@@ -442,8 +522,13 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         }
 
         const result = await analyzeProjects(toAnalyze, resolvedAdapter!, inventory!, {
-          noCache, dryRun,
-          onProgress: (done, total, cur) => { setProgress({ done, total }); setCurrent(cur); },
+          noCache,
+          dryRun,
+          signal: ac.signal,
+          onProgress: (done, total, cur) => {
+            setProgress({ done, total });
+            setCurrent(cur);
+          },
           onProjectStatus: (id, status, detail) => {
             setProjectStatuses((prev) => {
               const next = new Map(prev);
@@ -470,63 +555,83 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         // Clear retry state
         setProjectsToAnalyze([]);
         finishAnalysis();
-      } catch (err: any) { onError(err.message); }
+      } catch (err: any) {
+        analyzingRef.current = false;
+        const aborted = err?.name === "AbortError" || err?.message === "Analysis cancelled";
+        if (aborted) {
+          onError("Cancelled.");
+          return;
+        }
+        onError(err.message ?? String(err));
+      } finally {
+        abortAnalyzeRef.current = null;
+      }
     }
     run();
   }, [phase, resolvedAdapter]);
 
   // Handle failure screen input
-  useInput((input, key) => {
-    if (phase !== "analysis-failed") return;
-    if (input === "r") {
-      // Retry only failed projects, keep successful results intact
-      setProjectsToAnalyze(failedProjects.map((f) => f.project));
-      setFailedProjects([]);
-      analyzingRef.current = false;
-      setPhase("analyzing");
-    } else if (input === "s") {
-      // Skip failures, continue with whatever succeeded
-      setProjectsToAnalyze([]);
-      setFailedProjects([]);
-      finishAnalysis();
-    } else if (input === "a") {
-      // Switch agent and retry failed projects only
-      setProjectsToAnalyze(failedProjects.map((f) => f.project));
-      setFailedProjects([]);
-      analyzingRef.current = false;
-      setResolvedAdapter(null);
-      setPhase("picking-agent");
-    }
-  });
+  useInput(
+    (input) => {
+      if (input === "r") {
+        // Retry only failed projects, keep successful results intact
+        setProjectsToAnalyze(failedProjects.map((f) => f.project));
+        setFailedProjects([]);
+        analyzingRef.current = false;
+        setPhase("analyzing");
+      } else if (input === "s") {
+        // Skip failures, continue with whatever succeeded
+        setProjectsToAnalyze([]);
+        setFailedProjects([]);
+        finishAnalysis();
+      } else if (input === "a") {
+        // Switch agent and retry failed projects only
+        setProjectsToAnalyze(failedProjects.map((f) => f.project));
+        setFailedProjects([]);
+        analyzingRef.current = false;
+        setResolvedAdapter(null);
+        setPhase("picking-agent");
+      }
+    },
+    { isActive: phase === "analysis-failed" }
+  );
+
+  useInput(() => {}, { isActive: PIPELINE_PHASES_PASSIVE_STDIN.has(phase) });
 
   // Render based on phase
   if (phase === "init") return null;
-  if (phase === "scanning") return (
-    <Box flexDirection="column">
-      {showTelemetryNotice && (
-        <Box marginBottom={1} flexDirection="column">
-          <Text dimColor>Anonymous telemetry enabled. Disable: agent-cv config or AGENT_CV_TELEMETRY=off</Text>
-        </Box>
-      )}
-      <Text color="yellow">Scanning {directory}...</Text>
-      {scanCount > 0 && (
-        <Text>
-          <Text color="green">Found {scanCount} project{scanCount !== 1 ? "s" : ""}{prevProjectCount > 0 ? <Text color="gray"> (was {prevProjectCount})</Text> : ""}</Text>
-          {lastFound ? <Text dimColor> — {lastFound}</Text> : null}
-        </Text>
-      )}
-    </Box>
-  );
-  if (phase === "picking-emails") return <EmailPicker emailCounts={emailCounts} preSelected={gitConfigEmails} onSubmit={handleEmailPick} />;
+  if (phase === "scanning")
+    return (
+      <Box flexDirection="column">
+        {showTelemetryNotice && (
+          <Box marginBottom={1} flexDirection="column">
+            <Text dimColor>Anonymous telemetry enabled. Disable: agent-cv config or AGENT_CV_TELEMETRY=off</Text>
+          </Box>
+        )}
+        <Text color="yellow">Scanning {directory}...</Text>
+        {scanCount > 0 && (
+          <Text>
+            <Text color="green">
+              Found {scanCount} project{scanCount !== 1 ? "s" : ""}
+              {prevProjectCount > 0 ? <Text color="gray"> (was {prevProjectCount})</Text> : ""}
+            </Text>
+            {lastFound ? <Text dimColor> — {lastFound}</Text> : null}
+          </Text>
+        )}
+      </Box>
+    );
+  if (phase === "picking-emails")
+    return <EmailPicker emailCounts={emailCounts} preSelected={gitConfigEmails} onSubmit={handleEmailPick} />;
   if (phase === "recounting") return <Text color="yellow">Identifying your projects...</Text>;
-  if (phase === "selecting") return <ProjectSelector projects={allProjects} scanRoot={directory} onSubmit={handleSelection} />;
-  if (phase === "picking-agent") return <AgentPicker onSubmit={handleAgentPick} onBack={handleAgentBack} defaultAgent={inventory?.lastAgent} />;
+  if (phase === "selecting")
+    return <ProjectSelector projects={allProjects} scanRoot={directory} onSubmit={handleSelection} />;
+  if (phase === "picking-agent")
+    return <AgentPicker onSubmit={handleAgentPick} onBack={handleAgentBack} defaultAgent={inventory?.lastAgent} />;
   if (phase === "analyzing") {
-    const allEntries = [...projectStatuses.entries()]
-      .map(([id, { status, detail }]) => {
-        const p = selectedProjects.find((p) => p.id === id);
-        return { id, name: p?.displayName || id, status, detail };
-      });
+    const allEntries = [...projectStatuses.entries()].map(([id, { status, detail }]) => {
+      const p = selectedProjects.find((p) => p.id === id);
+      return { id, name: p?.displayName || id, status, detail };
+    });
     const analyzing = allEntries.filter((e) => e.status === "analyzing");
     const done = allEntries.filter((e) => e.status === "done" || e.status === "cached");
     const failed = allEntries.filter((e) => e.status === "failed");
@@ -545,7 +650,9 @@ export function Pipeline({ options, onComplete, onError }: Props) {
         {dryRun && <Text dimColor>(dry-run mode, no LLM calls)</Text>}
         <Text>
           <Text color="yellow">Analyzing </Text>
-          <Text>[{completed}/{total}] </Text>
+          <Text>
+            [{completed}/{total}]{" "}
+          </Text>
           <Text bold>{currentName} </Text>
           <Text color="yellow">{bar}</Text>
           <Text> {pct}%</Text>
@@ -558,22 +665,29 @@ export function Pipeline({ options, onComplete, onError }: Props) {
     const analyzed = selectedProjects.length - failedProjects.length;
     return (
       <Box flexDirection="column">
-        <Text color="yellow" bold>Analysis complete with errors</Text>
-        <Text color="green">  {analyzed} analyzed successfully</Text>
-        <Text color="red">  {failedProjects.length} failed:</Text>
+        <Text color="yellow" bold>
+          Analysis complete with errors
+        </Text>
+        <Text color="green"> {analyzed} analyzed successfully</Text>
+        <Text color="red"> {failedProjects.length} failed:</Text>
         {failedProjects.slice(0, 10).map((f) => (
-          <Text key={f.project.id} dimColor>    {f.project.path}: {f.error.slice(0, 80)}</Text>
+          <Text key={f.project.id} dimColor>
+            {" "}
+            {f.project.path}: {f.error.slice(0, 80)}
+          </Text>
         ))}
-        {failedProjects.length > 10 && <Text dimColor>    ...and {failedProjects.length - 10} more</Text>}
+        {failedProjects.length > 10 && <Text dimColor> ...and {failedProjects.length - 10} more</Text>}
         <Text> </Text>
-        <Text>[r] retry failed  [a] switch agent and retry  [s] skip and continue</Text>
+        <Text>[r] retry failed [a] switch agent and retry [s] skip and continue</Text>
       </Box>
     );
   }
   if (phase === "finishing") {
     return (
       <Box flexDirection="column">
-        <Text color="yellow" bold>Wrapping up</Text>
+        <Text color="yellow" bold>
+          Wrapping up
+        </Text>
         <Text dimColor>{current || "…"}</Text>
       </Box>
     );

@@ -1,9 +1,5 @@
 import { scanDirectory } from "../discovery/scanner.ts";
-import {
-  readInventory,
-  writeInventory,
-  mergeInventory,
-} from "../inventory/store.ts";
+import { readInventory, writeInventory, mergeInventory } from "../inventory/store.ts";
 import { resolve } from "node:path";
 import type { Inventory, Project } from "../types.ts";
 import { GitHubClient } from "../discovery/github-client.ts";
@@ -19,6 +15,8 @@ export interface ScanCallbacks {
 export interface ScanMergeOptions {
   /** Skip GitHub GET /repos enrichment (e.g. dry-run). Fork/stars/public come from API in one call. */
   skipGitHubEnrich?: boolean;
+  /** When aborted (e.g. CLI Ctrl+C / Ink unmount), stops before further I/O and GitHub calls */
+  signal?: AbortSignal;
 }
 
 /**
@@ -36,8 +34,11 @@ export async function scanAndMerge(
       emails: [],
       onProjectFound: callbacks?.onProjectFound,
       onDirectoryEnter: callbacks?.onDirectoryEnter,
+      signal: options?.signal,
     })
   );
+
+  options?.signal?.throwIfAborted();
 
   const absDirectory = resolve(directory);
   const existingInventory = await readInventory();
@@ -45,14 +46,17 @@ export async function scanAndMerge(
 
   const projects = merged.projects.filter((p) => !p.tags.includes("removed"));
   if (!options?.skipGitHubEnrich) {
+    options?.signal?.throwIfAborted();
     const ghClient = await GitHubClient.create();
-    await withPipelineTiming("github_enrich_rest", () => enrichGitHubData(projects, ghClient));
-    const ghLogin =
-      merged.profile.socials?.github?.trim() || detectGitHubUsername(merged) || undefined;
+    await withPipelineTiming("github_enrich_rest", () =>
+      enrichGitHubData(projects, ghClient, undefined, options?.signal)
+    );
+    const ghLogin = merged.profile.socials?.github?.trim() || detectGitHubUsername(merged) || undefined;
     await withPipelineTiming("github_upstream_prs", () =>
-      enrichUpstreamPullRequestCounts(projects, ghClient, ghLogin)
+      enrichUpstreamPullRequestCounts(projects, ghClient, ghLogin, options?.signal)
     );
   }
+  options?.signal?.throwIfAborted();
   await writeInventory(merged);
 
   return { inventory: merged, projects };
@@ -67,7 +71,8 @@ export async function scanAndMerge(
 export async function enrichGitHubData(
   projects: Project[],
   client?: GitHubClient,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const toCheck = projects.filter((p) => p.remoteUrl?.includes("github.com"));
   if (toCheck.length === 0) return;
@@ -77,6 +82,7 @@ export async function enrichGitHubData(
   let done = 0;
 
   for (let i = 0; i < toCheck.length; i += BATCH) {
+    signal?.throwIfAborted();
     if (ghClient.isRateLimited) {
       console.error(
         "Warning: GitHub API rate limit reached, skipping remaining repos. Set GITHUB_TOKEN or save githubToken in credentials.json for higher limits."
@@ -84,27 +90,29 @@ export async function enrichGitHubData(
       break;
     }
     const batch = toCheck.slice(i, i + BATCH);
-    await Promise.all(batch.map(async (p) => {
-      if (ghClient.isRateLimited) return;
-      try {
-        const match = p.remoteUrl!.match(/github\.com\/([^/]+\/[^/]+)/);
-        if (!match) return;
-        const data = await ghClient.get<{
-          stargazers_count: number;
-          private: boolean;
-          fork: boolean;
-          parent?: { full_name: string };
-        }>(`/repos/${match[1]}`);
-        p.stars = data.stargazers_count || 0;
-        p.isPublic = !data.private;
-        p.isFork = data.fork;
-        if (data.parent?.full_name) {
-          p.githubParentFullName = data.parent.full_name;
+    await Promise.all(
+      batch.map(async (p) => {
+        if (ghClient.isRateLimited) return;
+        try {
+          const match = p.remoteUrl!.match(/github\.com\/([^/]+\/[^/]+)/);
+          if (!match) return;
+          const data = await ghClient.get<{
+            stargazers_count: number;
+            private: boolean;
+            fork: boolean;
+            parent?: { full_name: string };
+          }>(`/repos/${match[1]}`);
+          p.stars = data.stargazers_count || 0;
+          p.isPublic = !data.private;
+          p.isFork = data.fork;
+          if (data.parent?.full_name) {
+            p.githubParentFullName = data.parent.full_name;
+          }
+        } catch {
+          // Non-critical: skip this repo's enrichment
         }
-      } catch {
-        // Non-critical: skip this repo's enrichment
-      }
-    }));
+      })
+    );
     done += batch.length;
     onProgress?.(done, toCheck.length);
   }

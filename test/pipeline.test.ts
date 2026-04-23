@@ -34,11 +34,13 @@ function makeInventory(projects: Project[]): Inventory {
   };
 }
 
-function createMockAdapter(behavior: {
-  failCount?: number;
-  failMessage?: string;
-  response?: Partial<ProjectAnalysis>;
-} = {}): AgentAdapter {
+function createMockAdapter(
+  behavior: {
+    failCount?: number;
+    failMessage?: string;
+    response?: Partial<ProjectAnalysis>;
+  } = {}
+): AgentAdapter {
   const { failCount = 0, failMessage = "API error 500: Internal Server Error", response = {} } = behavior;
   let callCount = 0;
   return {
@@ -62,6 +64,17 @@ function createMockAdapter(behavior: {
 }
 
 describe("analyzeProjects", () => {
+  test("rejects when AbortSignal is already aborted", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const projects = [makeProject({ displayName: "x" })];
+    const inventory = makeInventory(projects);
+    const adapter = createMockAdapter();
+    await expect(analyzeProjects(projects, adapter, inventory, { signal: ac.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
   test("analyzes projects successfully", async () => {
     const projects = [makeProject({ displayName: "proj-a" }), makeProject({ displayName: "proj-b" })];
     const inventory = makeInventory(projects);
@@ -247,8 +260,11 @@ describe("analyzeProjects", () => {
           throw new Error("Cursor agent exited with code 1: billing expired");
         }
         return {
-          summary: "Works.", techStack: ["TS"], contributions: ["Built"],
-          analyzedAt: new Date().toISOString(), analyzedBy: "test",
+          summary: "Works.",
+          techStack: ["TS"],
+          contributions: ["Built"],
+          analyzedAt: new Date().toISOString(),
+          analyzedBy: "test",
         };
       },
     };

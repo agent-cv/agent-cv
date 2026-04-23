@@ -28,19 +28,15 @@ export interface GitHubCloudPhaseInput {
   projects: Project[];
   ghUser: string;
   includeForks?: boolean;
+  /** When aborted, stops before further network / disk writes */
+  signal?: AbortSignal;
 }
 
 export interface GitHubCloudPhaseCallbacks {
   onStatus: (message: string) => void;
   onGitHubProgress?: (done: number, total: number, name: string) => void;
-  onGitHubScanComplete?: (
-    durationMs: number,
-    meta: { cloud_repos: number }
-  ) => void | Promise<void>;
-  onPackageRegistrySearchComplete?: (
-    durationMs: number,
-    meta: { packages_found: number }
-  ) => void | Promise<void>;
+  onGitHubScanComplete?: (durationMs: number, meta: { cloud_repos: number }) => void | Promise<void>;
+  onPackageRegistrySearchComplete?: (durationMs: number, meta: { packages_found: number }) => void | Promise<void>;
 }
 
 export interface GitHubCloudPhaseResult {
@@ -61,19 +57,20 @@ export async function mergeGitHubCloudIntoScanResult(
   deps: Partial<GitHubCloudPhaseDeps> = {}
 ): Promise<GitHubCloudPhaseResult> {
   const d = { ...defaultDeps, ...deps };
-  const { ghUser, includeForks } = input;
+  const { ghUser, includeForks, signal } = input;
   let { inventory, projects } = input;
+
+  signal?.throwIfAborted();
 
   const ghClient = await d.createGitHubClient();
   if (!ghClient.isAuthenticated) {
-    callbacks.onStatus(
-      "Skipping GitHub scan — set GITHUB_TOKEN or credentials.githubToken"
-    );
+    callbacks.onStatus("Skipping GitHub scan — set GITHUB_TOKEN or credentials.githubToken");
     return { inventory, projects, applied: false };
   }
 
   try {
     callbacks.onStatus(`Scanning GitHub repos for ${ghUser}...`);
+    signal?.throwIfAborted();
     const ghScanStarted = Date.now();
     const ghResult = await d.scanGitHub(ghUser, ghClient, {
       includeForks,
@@ -87,16 +84,12 @@ export async function mergeGitHubCloudIntoScanResult(
     projects = inventory.projects.filter((p) => !p.tags.includes("removed"));
 
     if (ghResult.profile) {
-      inventory.profile.name =
-        inventory.profile.name || ghResult.profile.name || undefined;
+      inventory.profile.name = inventory.profile.name || ghResult.profile.name || undefined;
       if (ghResult.profile.bio) {
         inventory.profile.socials = {
           ...inventory.profile.socials,
           github: ghUser,
-          website:
-            inventory.profile.socials?.website ||
-            ghResult.profile.blog ||
-            undefined,
+          website: inventory.profile.socials?.website || ghResult.profile.blog || undefined,
         };
       }
     }
@@ -111,6 +104,7 @@ export async function mergeGitHubCloudIntoScanResult(
 
     try {
       callbacks.onStatus("Searching package registries...");
+      signal?.throwIfAborted();
       const pkgStarted = Date.now();
       const packages = await d.searchPackageRegistries(ghUser, (_registry, error) => {
         callbacks.onStatus(`Warning: ${error}`);
@@ -125,6 +119,7 @@ export async function mergeGitHubCloudIntoScanResult(
       // Package registries are best-effort
     }
 
+    signal?.throwIfAborted();
     await d.writeInventory(inventory);
 
     if (ghResult.errors.length > 0) {
@@ -133,12 +128,13 @@ export async function mergeGitHubCloudIntoScanResult(
       }
     }
 
-    callbacks.onStatus(
-      `GitHub: found ${ghResult.projects.length} repos, ${ghResult.starredRepos.length} starred`
-    );
+    callbacks.onStatus(`GitHub: found ${ghResult.projects.length} repos, ${ghResult.starredRepos.length} starred`);
 
     return { inventory, projects, applied: true, ghResult };
   } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw err;
+    }
     if (err instanceof GitHubAuthError) {
       callbacks.onStatus(`GitHub auth failed: ${err.message}`);
     } else {

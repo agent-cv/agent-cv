@@ -9,11 +9,22 @@ import { GitHubClient } from "../discovery/github-client.ts";
  * Transient error patterns that are worth retrying (rate limits, network, server errors).
  */
 const TRANSIENT_PATTERNS = [
-  "429", "rate limit", "timeout", "timed out",
-  "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE",
-  "AbortError", "abort",
-  "500", "502", "503", "504",
-  "fetch failed", "network",
+  "429",
+  "rate limit",
+  "timeout",
+  "timed out",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "AbortError",
+  "abort",
+  "500",
+  "502",
+  "503",
+  "504",
+  "fetch failed",
+  "network",
 ];
 
 function isTransientError(message: string): boolean {
@@ -21,26 +32,79 @@ function isTransientError(message: string): boolean {
   return TRANSIENT_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new DOMException("Analysis cancelled", "AbortError");
+  }
+}
+
+/** Rejects when `signal` is aborted so in-flight work can be torn down with the Ink tree (e.g. Ctrl+C). */
+function abortRace<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Analysis cancelled", "AbortError"));
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new DOMException("Analysis cancelled", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+
 /**
  * Retry a function with exponential backoff. Only retries transient errors.
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
-  opts: { maxAttempts?: number; baseDelay?: number; onRetry?: (attempt: number, error: string) => void } = {}
+  opts: {
+    maxAttempts?: number;
+    baseDelay?: number;
+    onRetry?: (attempt: number, error: string) => void;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<T> {
-  const { maxAttempts = 3, baseDelay = 2000, onRetry } = opts;
+  const { maxAttempts = 3, baseDelay = 2000, onRetry, signal } = opts;
+
+  const sleepWithAbort = (ms: number) =>
+    new Promise<void>((resolve, reject) => {
+      throwIfAborted(signal);
+      const id = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(id);
+        signal?.removeEventListener("abort", onAbort);
+        reject(new DOMException("Analysis cancelled", "AbortError"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    throwIfAborted(signal);
     try {
       return await fn();
     } catch (err: any) {
+      if (signal?.aborted) throw err;
       const message = err.message || String(err);
       if (attempt === maxAttempts || !isTransientError(message)) {
         throw err;
       }
       const delay = baseDelay * Math.pow(2, attempt - 1);
       onRetry?.(attempt, message);
-      await new Promise((r) => setTimeout(r, delay));
+      await sleepWithAbort(delay);
     }
   }
   throw new Error("retryWithBackoff: unreachable");
@@ -68,10 +132,12 @@ export async function analyzeProjects(
     dryRun?: boolean;
     onProgress?: (done: number, total: number, current: string) => void;
     onProjectStatus?: (projectId: string, status: ProjectStatus, detail?: string) => void;
+    /** When aborted (e.g. Ink unmount on Ctrl+C), stops between projects and rejects in-flight adapter work. */
+    signal?: AbortSignal;
   } = {}
 ): Promise<AnalysisResult> {
   const analyzeStarted = Date.now();
-  const { noCache = false, dryRun = false, onProgress, onProjectStatus } = options;
+  const { noCache = false, dryRun = false, onProgress, onProjectStatus, signal } = options;
 
   const needsAnalysis = (p: Project) => {
     if (!p.analysis) return true;
@@ -106,11 +172,11 @@ export async function analyzeProjects(
   let lastFailureMessage = "";
   let circuitBroken = false;
 
-  const cloudGhClient = toAnalyze.some((p) => p.source === "github")
-    ? await GitHubClient.create()
-    : undefined;
+  throwIfAborted(signal);
+  const cloudGhClient = toAnalyze.some((p) => p.source === "github") ? await GitHubClient.create() : undefined;
 
   for (let i = 0; i < toAnalyze.length; i += BATCH_SIZE) {
+    throwIfAborted(signal);
     // Circuit breaker: if adapter is consistently failing, stop early
     if (circuitBroken) {
       const remaining = toAnalyze.slice(i);
@@ -127,10 +193,17 @@ export async function analyzeProjects(
 
     if (dryRun) {
       for (const project of batch) {
+        throwIfAborted(signal);
         const context = await buildProjectContext(project);
-        const totalChars = context.readme.length + context.dependencies.length +
-          context.directoryTree.length + context.gitShortlog.length + context.recentCommits.length;
-        console.error(`\n--- DRY RUN: ${project.displayName} ---\nContext size: ~${Math.round(totalChars / 4)} tokens\n`);
+        const totalChars =
+          context.readme.length +
+          context.dependencies.length +
+          context.directoryTree.length +
+          context.gitShortlog.length +
+          context.recentCommits.length;
+        console.error(
+          `\n--- DRY RUN: ${project.displayName} ---\nContext size: ~${Math.round(totalChars / 4)} tokens\n`
+        );
       }
       completed += batch.length;
       continue;
@@ -157,23 +230,24 @@ export async function analyzeProjects(
             return;
           }
 
-          const analysis = await retryWithBackoff(
-            () => adapter.analyze(context),
-            {
-              onRetry: (attempt, error) => {
-                onProjectStatus?.(project.id, "analyzing", `retry ${attempt + 1}/3... ${error.slice(0, 40)}`);
-              },
-            }
-          );
+          const analysis = await retryWithBackoff(() => abortRace(adapter.analyze(context), signal), {
+            signal,
+            onRetry: (attempt, error) => {
+              onProjectStatus?.(project.id, "analyzing", `retry ${attempt + 1}/3... ${error.slice(0, 40)}`);
+            },
+          });
           // For git projects: last commit hash. For non-git: file fingerprint.
-          analysis.analyzedAtCommit = project.lastCommit
-            || `files:${project.size?.files || 0}:${project.dateRange.end}`;
+          analysis.analyzedAtCommit =
+            project.lastCommit || `files:${project.size?.files || 0}:${project.dateRange.end}`;
           analysis.promptVersion = PROMPT_VERSION;
           project.analysis = analysis;
           analyzedOk++;
           batchSuccesses++;
           onProjectStatus?.(project.id, "done", analysis.summary?.slice(0, 60));
         } catch (err: any) {
+          if (signal?.aborted) {
+            throw err;
+          }
           failed.push({ project, error: err.message });
           onProjectStatus?.(project.id, "failed", err.message.slice(0, 60));
           lastFailureMessage = err.message;
@@ -186,8 +260,11 @@ export async function analyzeProjects(
       consecutiveFailures++;
       if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
         circuitBroken = true;
-        onProgress?.(completed + batch.length, toAnalyze.length,
-          `Agent broken — ${consecutiveFailures} batches failed: ${lastFailureMessage.slice(0, 60)}`);
+        onProgress?.(
+          completed + batch.length,
+          toAnalyze.length,
+          `Agent broken — ${consecutiveFailures} batches failed: ${lastFailureMessage.slice(0, 60)}`
+        );
       }
     } else {
       consecutiveFailures = 0;
@@ -196,6 +273,7 @@ export async function analyzeProjects(
     completed += batch.length;
     onProgress?.(completed, toAnalyze.length, "");
     await writeInventory(inventory);
+    throwIfAborted(signal);
   }
 
   const durationMs = Date.now() - analyzeStarted;
