@@ -1,0 +1,33 @@
+<svg width="1600" height="420" viewBox="0 0 1600 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">agent-cv hero banner</title>
+  <desc id="desc">One command. Your profile is ready.</desc>
+  <defs>
+    <linearGradient id="logoGradient" x1="560" y1="0" x2="1040" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff6b6b"/>
+      <stop offset="0.18" stop-color="#ffa500"/>
+      <stop offset="0.34" stop-color="#ffd700"/>
+      <stop offset="0.5" stop-color="#4ecdc4"/>
+      <stop offset="0.68" stop-color="#45b7d1"/>
+      <stop offset="0.84" stop-color="#9966cc"/>
+      <stop offset="1" stop-color="#ff6b9d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="420" fill="#fefefe"/>
+  <rect x="1" y="1" width="1598" height="418" rx="16" stroke="#e9ecf2" stroke-width="2"/>
+
+  <text x="800" y="84" text-anchor="middle" font-size="14" letter-spacing="4.5" fill="#767d88" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    DEVELOPER PROFILE GENERATOR
+  </text>
+
+  <text x="800" y="170" text-anchor="middle" font-size="64" font-weight="700" letter-spacing="-2.2" fill="#0c0c0c" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    One command.
+  </text>
+  <text x="800" y="238" text-anchor="middle" font-size="64" font-weight="700" letter-spacing="-2.2" fill="#0c0c0c" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    Your <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" font-weight="700">profile</tspan> is ready.
+  </text>
+
+  <text x="800" y="330" text-anchor="middle" font-size="42" font-weight="700" fill="url(#logoGradient)" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace">
+    agent-cv
+  </text>
+</svg>

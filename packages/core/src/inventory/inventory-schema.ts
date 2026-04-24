@@ -1,5 +1,5 @@
 /**
- * Zod validation for inventory.json on read.
+ * Zod validation for the assembled Inventory shape (e.g. API payloads, exports).
  */
 import { z } from "zod";
 import type { Inventory, InventoryProfile, ProfileInsights, Project } from "../types.ts";

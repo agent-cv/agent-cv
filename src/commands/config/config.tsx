@@ -59,7 +59,7 @@ export default function ConfigCommand({}: Props) {
         <Text>
           <Shimmer>agent-cv</Shimmer> <Text bold>config</Text>
         </Text>
-        <Text dimColor>[Enter] edit [q] quit Saved to ~/.agent-cv/inventory.json</Text>
+        <Text dimColor>[Enter] edit [q] quit Saved under ~/.agent-cv/</Text>
       </Box>
 
       {fields.map((field, i) => {

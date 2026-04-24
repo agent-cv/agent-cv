@@ -22,12 +22,18 @@ bun install
 
 CI runs the same test suite on push/PR to `main` or `master` (see `.github/workflows/test.yml`).
 
+User-facing CLI flags and AI env vars are documented in **[docs/CLI.md](docs/CLI.md)** (keep in sync with `src/cli.ts` when adding options).
+
 ## Repository layout
 
 - **`src/`** — CLI entrypoint (`cli.ts`), per-command folders (`commands/<name>/`), and UI (`components/`).
 - **`packages/core/`** — Workspace package **`@agent-cv/core`**: pipeline, discovery, inventory, analysis adapters, telemetry, and publish helpers. Import with subpaths such as `@agent-cv/core/src/pipeline.ts` or `@agent-cv/core/src/types.ts` (workspace-only; not published to npm separately yet).
 
 Keep new headless logic in **`packages/core`**; keep Ink/React in **`src/`**.
+
+## Implementation
+
+Built with [Bun](https://bun.sh), [Ink](https://github.com/vadimdemedes/ink) (terminal React), [Commander](https://github.com/tj/commander.js), [Zod](https://zod.dev), [XState](https://xstate.js.org/), and [simple-git](https://github.com/steveukx/git-js). Core library lives in `packages/core`.
 
 ## CLI architecture (state)
 

@@ -82,4 +82,4 @@ Cost analysis for claude-3-haiku:
 
 - Node.js 18+
 - OpenRouter API key
-- inventory.json file in project root
+- **`inventory.json`** in the project root (dev default path for `scripts/generate-insights.ts`; the CLI persists under `~/.agent-cv/` instead)

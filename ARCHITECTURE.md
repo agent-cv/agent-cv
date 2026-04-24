@@ -45,10 +45,10 @@ agent-cv generate ~/Projects
 
 ## Data Model
 
-Everything lives in one file: `~/.agent-cv/inventory.json`
+On disk under **`~/.agent-cv/`** (or **`AGENT_CV_DATA_DIR`**): **`pglite-data/`** holds synced rows (projects, profile fields that sync); **`state.json`** holds local-only fields (`lastScan`, `scanPaths`, `lastAgent`, `emails`, `emailsConfirmed`, etc.). The CLI still works with a single in-memory **`Inventory`** assembled by `readInventory` / persisted by `writeInventory`.
 
 ```
-Inventory
+Inventory (assembled type; not a single JSON file)
 ├── version: "1.0"
 ├── lastScan: ISO timestamp
 ├── scanPaths: string[]

@@ -13,7 +13,7 @@ Agent CLIs (`claude -p`, `codex exec`, `cursor`) have no stable contract. Output
 ## Inventory schema migration system
 **Priority:** P1 | **Effort:** S (human: ~0.5 day / CC: ~5 min) | **Depends on:** v0a (inventory is core)
 
-Add a `version` field to inventory.json and a migration function that runs on load. When schema changes, bump version and add a migration step. Prevents old inventory files from breaking on upgrade.
+Add a `version` field to the stored inventory schema and a migration that runs on load. When schema changes, bump version and add a migration step. Prevents old local data from breaking on upgrade.
 
 ## Cost estimation before LLM analysis
 **Priority:** P2 | **Effort:** S (human: ~0.5 day / CC: ~5 min) | **Depends on:** v0b (API adapter)
