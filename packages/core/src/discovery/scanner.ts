@@ -44,30 +44,11 @@ const IGNORE_DIRS = new Set([
   "DerivedData",
 ]);
 
-/** Concurrency cap for parallel directory walk. */
+/** Number of parallel workers consuming the directory queue. */
 const WALK_CONCURRENCY = (() => {
   const env = Number(process.env.AGENT_CV_SCAN_CONCURRENCY);
-  return Number.isFinite(env) && env > 0 ? env : 16;
+  return Number.isFinite(env) && env > 0 ? env : 32;
 })();
-
-/**
- * Tiny semaphore — caps in-flight async operations to avoid EMFILE / fork bombs.
- */
-function makeSemaphore(max: number) {
-  let active = 0;
-  const queue: Array<() => void> = [];
-  return async function run<T>(fn: () => Promise<T>): Promise<T> {
-    if (active >= max) await new Promise<void>((res) => queue.push(res));
-    active++;
-    try {
-      return await fn();
-    } finally {
-      active--;
-      const next = queue.shift();
-      if (next) next();
-    }
-  };
-}
 
 /**
  * Project markers and their corresponding type/language.
@@ -133,32 +114,9 @@ export async function scanDirectory(rootPath: string, options: ScanOptions = {})
   }
   signal?.throwIfAborted();
 
-  const limit = makeSemaphore(WALK_CONCURRENCY);
-
-  /**
-   * Load .gitignore at `dir` (if present) and return a child Ignore matcher.
-   * Matchers are stacked: a directory's matcher is parent + own .gitignore.
-   * Paths fed to the matcher are relative to `dir` and never start with "/".
-   */
-  async function loadGitignore(dir: string, parent: Ignore | null): Promise<Ignore> {
-    const ig = ignore();
-    if (parent) {
-      // ignore@7 doesn't expose rules, so we compose by re-checking parent first
-      // via a wrapper. Cheap path: read every .gitignore on the chain.
-    }
-    try {
-      const content = await readFile(join(dir, ".gitignore"), "utf-8");
-      ig.add(content);
-    } catch {
-      /* no .gitignore here */
-    }
-    return ig;
-  }
-
   /**
    * Returns true if `name` (a basename inside `dir`) is ignored by any matcher
-   * in the chain from root to here. We pass paths relative to each matcher's
-   * own directory so .gitignore semantics stay correct.
+   * in the chain. Paths are passed relative to each matcher's own directory.
    */
   function isIgnored(
     name: string,
@@ -175,11 +133,19 @@ export async function scanDirectory(rootPath: string, options: ScanOptions = {})
     return false;
   }
 
-  async function walk(
-    dir: string,
-    depth: number,
-    chain: Array<{ matcher: Ignore; dir: string }>
-  ): Promise<void> {
+  /**
+   * Process a single directory: detect markers, build project, queue children.
+   * Crucially, this does NOT recurse — children go back into the work queue
+   * so the worker pool stays unblocked (no deadlock when tree depth exceeds
+   * concurrency).
+   */
+  type WalkItem = { dir: string; depth: number; chain: Array<{ matcher: Ignore; dir: string }> };
+  const queue: WalkItem[] = [{ dir: absRoot, depth: 0, chain: [] }];
+  let inflight = 0;
+  const wakeups: Array<() => void> = [];
+
+  async function processOne(item: WalkItem): Promise<void> {
+    const { dir, depth, chain } = item;
     if (depth > maxDepth) return;
 
     signal?.throwIfAborted();
@@ -189,91 +155,98 @@ export async function scanDirectory(rootPath: string, options: ScanOptions = {})
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch (err: any) {
-      if (err.code === "EACCES") {
-        errors.push({ path: dir, error: "Permission denied" });
-        return;
-      }
-      if (err.code === "ENOENT") {
-        errors.push({ path: dir, error: "Directory not found" });
-        return;
-      }
-      if (err.code === "ELOOP") {
-        errors.push({ path: dir, error: "Symlink loop detected" });
-        return;
-      }
+      if (err.code === "EACCES") return errors.push({ path: dir, error: "Permission denied" }), undefined;
+      if (err.code === "ENOENT") return errors.push({ path: dir, error: "Directory not found" }), undefined;
+      if (err.code === "ELOOP") return errors.push({ path: dir, error: "Symlink loop detected" }), undefined;
       throw err;
     }
 
-    // Check if this directory is a project (has markers)
+    // Detect project markers
     const detectedMarkers: string[] = [];
     let primaryMarker: (typeof PROJECT_MARKERS)[0] | undefined;
-
+    let hasGitignore = false;
+    let hasGit = false;
+    const fileNames = new Set<string>();
+    for (const e of entries) {
+      if (e.isFile()) fileNames.add(e.name);
+      if (e.name === ".gitignore" && e.isFile()) hasGitignore = true;
+      if (e.name === ".git" && (e.isDirectory() || e.isFile())) hasGit = true;
+    }
     for (const marker of PROJECT_MARKERS) {
-      if (entries.some((e) => e.name === marker.file && e.isFile())) {
+      if (fileNames.has(marker.file)) {
         detectedMarkers.push(marker.file);
         if (!primaryMarker) primaryMarker = marker;
       }
     }
 
-    // Also check for .git as a standalone indicator
-    const hasGit = entries.some((e) => e.name === ".git" && (e.isDirectory() || e.isFile()));
-
     if (primaryMarker || hasGit) {
-      // Nested project dedup: skip if a parent is already a project
       const isNested = [...foundProjectPaths].some((pp) => dir.startsWith(pp + "/"));
       if (!isNested) {
         foundProjectPaths.add(dir);
-
         try {
-          // Discover repo-local email (user configured it on this machine)
           if (hasGit) {
             const localEmail = await discoverRepoLocalEmail(dir);
             if (localEmail) userEmails.add(localEmail);
           }
-
           const project = await buildProject(dir, primaryMarker, detectedMarkers, hasGit, userEmails);
           projects.push(project);
           onProjectFound?.(project, projects.length);
-          if (verbose) {
-            console.error(`  Found: ${project.displayName} (${project.type})`);
-          }
+          if (verbose) console.error(`  Found: ${project.displayName} (${project.type})`);
         } catch (err: any) {
           errors.push({ path: dir, error: err.message });
         }
-
-        // Don't recurse into project subdirectories for more projects
-        // (handles monorepo dedup — shallowest marker wins)
+        // Don't recurse into project subdirectories
         return;
       }
     }
 
-    // Pull this dir's .gitignore (if any) and extend the chain for children
-    const ownIg = await loadGitignore(dir, null);
-    const childChain = [...chain, { matcher: ownIg, dir }];
+    // Extend gitignore chain only if this dir actually has a .gitignore
+    let childChain = chain;
+    if (hasGitignore) {
+      try {
+        const content = await readFile(join(dir, ".gitignore"), "utf-8");
+        const ig = ignore().add(content);
+        childChain = [...chain, { matcher: ig, dir }];
+      } catch {
+        /* unreadable, fall through */
+      }
+    }
 
-    // Walk subdirectories in parallel, capped by semaphore
-    const subdirs: string[] = [];
+    // Queue subdirectories for the worker pool
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       if (IGNORE_DIRS.has(entry.name)) continue;
-      // Hidden dirs (except .git which we already handled above) are skipped
       if (entry.name.startsWith(".") && entry.name !== ".git") continue;
       if (isIgnored(entry.name, true, childChain, dir)) continue;
-      subdirs.push(entry.name);
+      queue.push({ dir: join(dir, entry.name), depth: depth + 1, chain: childChain });
     }
 
-    if (subdirs.length === 0) return;
-    await Promise.all(
-      subdirs.map((name) =>
-        limit(() => {
-          signal?.throwIfAborted();
-          return walk(join(dir, name), depth + 1, childChain);
-        })
-      )
-    );
+    // Wake any sleeping workers since we may have added work
+    while (wakeups.length > 0) wakeups.shift()!();
   }
 
-  await walk(absRoot, 0, []);
+  async function worker(): Promise<void> {
+    while (true) {
+      signal?.throwIfAborted();
+      const item = queue.shift();
+      if (!item) {
+        if (inflight === 0) return; // queue drained AND no one is producing
+        await new Promise<void>((res) => wakeups.push(res));
+        continue;
+      }
+      inflight++;
+      try {
+        await processOne(item);
+      } finally {
+        inflight--;
+        if (inflight === 0 && queue.length === 0) {
+          while (wakeups.length > 0) wakeups.shift()!();
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: WALK_CONCURRENCY }, () => worker()));
 
   // Sort by most recent first
   projects.sort((a, b) => {
