@@ -137,21 +137,24 @@ export class GitHubClient {
 
   /**
    * Fetch all pages of a paginated GitHub API endpoint.
+   *
+   * Strategy: fetch page 1, then if a `Link rel=last` is present, fan out
+   * pages 2..N in parallel. Falls back to serial Link-rel=next walking
+   * for endpoints that don't expose `last` (e.g. Events API).
    */
   async paginate<T = any>(path: string, maxPages: number = 20): Promise<T[]> {
-    const results: T[] = [];
-    let url = path.includes("?") ? `${path}&per_page=100` : `${path}?per_page=100`;
-    let page = 0;
+    const PAGE_CONCURRENCY = 6;
+    const initialUrl = path.includes("?") ? `${path}&per_page=100` : `${path}?per_page=100`;
 
-    while (url && page < maxPages) {
+    const fetchPage = async (
+      url: string
+    ): Promise<{ data: T[]; nextUrl: string; lastPage: number | null }> => {
       const fullUrl = url.startsWith("http") ? url : `https://api.github.com${url}`;
       const headers: Record<string, string> = {
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "agent-cv",
       };
-      if (this.token) {
-        headers["Authorization"] = `Bearer ${this.token}`;
-      }
+      if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
 
       const res = await fetch(fullUrl, { headers, redirect: "follow" });
 
@@ -166,21 +169,78 @@ export class GitHubClient {
         if (res.status === 403 && this.rateLimited) {
           throw new GitHubRateLimitError(this.remaining, this.resetAt);
         }
-        break;
+        return { data: [], nextUrl: "", lastPage: null };
       }
 
-      const data = await res.json() as T[];
-      if (!Array.isArray(data) || data.length === 0) break;
-      results.push(...data);
-
-      // Parse Link header for next page
+      const data = (await res.json()) as T[];
       const link = res.headers.get("link");
       const nextMatch = link?.match(/<([^>]+)>;\s*rel="next"/);
-      url = nextMatch ? nextMatch[1]! : "";
-      page++;
+      const lastMatch = link?.match(/<([^>]+page=(\d+)[^>]*)>;\s*rel="last"/);
+      const lastPage = lastMatch?.[2] ? parseInt(lastMatch[2], 10) : null;
+      return {
+        data: Array.isArray(data) ? data : [],
+        nextUrl: nextMatch ? nextMatch[1]! : "",
+        lastPage,
+      };
+    };
+
+    // First page tells us total page count (if endpoint supports it).
+    const first = await fetchPage(initialUrl);
+    if (first.data.length === 0) return [];
+
+    const totalPages = first.lastPage ? Math.min(first.lastPage, maxPages) : null;
+
+    // Fast path: known total → parallel fetch of pages 2..totalPages
+    if (totalPages !== null && totalPages >= 2) {
+      const pageNumbers: number[] = [];
+      for (let p = 2; p <= totalPages; p++) pageNumbers.push(p);
+
+      const buildPageUrl = (n: number): string => {
+        const sep = initialUrl.includes("?") ? "&" : "?";
+        return `${initialUrl}${sep}page=${n}`;
+      };
+
+      const results: T[][] = new Array(totalPages);
+      results[0] = first.data;
+
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < pageNumbers.length) {
+          const idx = cursor++;
+          const pageNum = pageNumbers[idx]!;
+          try {
+            const r = await fetchPage(buildPageUrl(pageNum));
+            results[pageNum - 1] = r.data;
+          } catch (err) {
+            if (err instanceof GitHubAuthError) throw err;
+            results[pageNum - 1] = [];
+          }
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(PAGE_CONCURRENCY, pageNumbers.length) }, () => worker())
+      );
+
+      return results.flat();
     }
 
-    return results;
+    // Slow path: no `last` rel — walk Link rel=next serially (e.g. Events API).
+    const all: T[] = [...first.data];
+    let nextUrl = first.nextUrl;
+    let page = 1;
+    while (nextUrl && page < maxPages) {
+      try {
+        const r = await fetchPage(nextUrl);
+        if (r.data.length === 0) break;
+        all.push(...r.data);
+        nextUrl = r.nextUrl;
+        page++;
+      } catch (err) {
+        if (err instanceof GitHubAuthError) throw err;
+        break;
+      }
+    }
+    return all;
   }
 }
 

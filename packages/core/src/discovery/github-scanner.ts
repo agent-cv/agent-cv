@@ -104,25 +104,36 @@ export async function scanGitHub(
   const { includeForks = false, onProgress } = options;
   const errors: Array<{ context: string; error: string }> = [];
 
-  // Fetch profile
+  // Profile, repos, starred, and recent events are all independent endpoints —
+  // fire them all in parallel. profile / repos auth-fail fatal; the rest soft.
+  const [profileRes, reposRes, starredRes, eventsRes] = await Promise.allSettled([
+    client.get<GitHubProfile>(`/users/${username}`),
+    client.paginate<GitHubRepo>(`/users/${username}/repos?sort=pushed`),
+    client.paginate<GitHubRepo>(`/users/${username}/starred`, 2), // cap at 200
+    client.paginate<GitHubEvent>(`/users/${username}/events/public`, 3),
+  ]);
+
+  // Profile
   let profile: GitHubProfile | null = null;
-  try {
-    profile = await client.get<GitHubProfile>(`/users/${username}`);
-  } catch (err: any) {
+  if (profileRes.status === "fulfilled") {
+    profile = profileRes.value;
+  } else {
+    const err = profileRes.reason;
     if (err instanceof GitHubNotFoundError) {
       throw new Error(`GitHub user '${username}' not found. Check the username.`);
     }
     if (err instanceof GitHubAuthError) throw err;
-    errors.push({ context: "profile", error: err.message });
+    errors.push({ context: "profile", error: err?.message ?? String(err) });
   }
 
-  // Fetch repos
+  // Repos (fatal on auth error; soft otherwise)
   let repos: GitHubRepo[] = [];
-  try {
-    repos = await client.paginate<GitHubRepo>(`/users/${username}/repos?sort=pushed`);
-  } catch (err: any) {
+  if (reposRes.status === "fulfilled") {
+    repos = reposRes.value;
+  } else {
+    const err = reposRes.reason;
     if (err instanceof GitHubAuthError) throw err;
-    errors.push({ context: "repos", error: err.message });
+    errors.push({ context: "repos", error: err?.message ?? String(err) });
     return { projects: [], profile, starredRepos: [], contributions: [], errors };
   }
 
@@ -177,29 +188,27 @@ export async function scanGitHub(
     });
   }
 
-  // Fetch starred repos (taste signal)
+  // Starred repos (taste signal) — already fetched in parallel above
   let starredRepos: GitHubScanResult["starredRepos"] = [];
-  try {
-    const starred = await client.paginate<GitHubRepo>(`/users/${username}/starred`, 2); // cap at 200
-    starredRepos = starred.map(r => ({
+  if (starredRes.status === "fulfilled") {
+    starredRepos = starredRes.value.map(r => ({
       name: r.full_name,
       description: r.description,
       language: r.language,
       stars: r.stargazers_count,
       url: r.html_url,
     }));
-  } catch (err: any) {
-    errors.push({ context: "starred", error: `Starred repos fetch failed: ${err.message}` });
+  } else {
+    const err = starredRes.reason;
+    errors.push({ context: "starred", error: `Starred repos fetch failed: ${err?.message ?? err}` });
   }
 
-  // Fetch recent contributions (Events API, 90-day window)
+  // Recent contributions (Events API, 90-day window) — already fetched in parallel above
   let contributions: GitHubScanResult["contributions"] = [];
-  try {
-    const events = await client.paginate<GitHubEvent>(`/users/${username}/events/public`, 3);
+  if (eventsRes.status === "fulfilled") {
     const seen = new Set<string>();
-    for (const event of events) {
+    for (const event of eventsRes.value) {
       if (event.type === "PushEvent" || event.type === "PullRequestEvent") {
-        // Skip own repos (already listed)
         const repoOwner = event.repo.name.split("/")[0]?.toLowerCase();
         if (repoOwner === username.toLowerCase()) continue;
         if (seen.has(event.repo.name)) continue;
@@ -211,8 +220,9 @@ export async function scanGitHub(
         });
       }
     }
-  } catch (err: any) {
-    errors.push({ context: "events", error: `Contributions fetch failed: ${err.message}` });
+  } else {
+    const err = eventsRes.reason;
+    errors.push({ context: "events", error: `Contributions fetch failed: ${err?.message ?? err}` });
   }
 
   return { projects, profile, starredRepos, contributions, errors };

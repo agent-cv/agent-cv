@@ -85,10 +85,12 @@ export async function scanAndMerge(
 }
 
 /**
- * Enrich local projects with GitHub REST data (stars, visibility, fork) via GET /repos/{owner}/{repo}.
- * Single request per repo — same endpoint previously split across scan (fork) and post-analysis (stars).
- * Uses centralized GitHubClient for auth and rate limit tracking.
- * Batches API calls 10 at a time. Includes cloud-listed repos so fork `parent` is filled in.
+ * Enrich projects with GitHub REST data (stars, visibility, fork, parent).
+ *
+ * Skips projects whose data was already populated by the cloud scan
+ * (`source === "github"` already has stars/isPublic/isFork from /users/{u}/repos).
+ * Only fork `parent` requires the extra GET /repos call — and only for forks
+ * that came from cloud scan but still need the parent name resolved.
  */
 export async function enrichGitHubData(
   projects: Project[],
@@ -96,7 +98,15 @@ export async function enrichGitHubData(
   onProgress?: (done: number, total: number) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const toCheck = projects.filter((p) => p.remoteUrl?.includes("github.com"));
+  const toCheck = projects.filter((p) => {
+    if (!p.remoteUrl?.includes("github.com")) return false;
+    // Cloud-sourced repos already carry stars/isPublic/isFork. Only re-fetch
+    // when we still need the fork's parent name.
+    if (p.source === "github") {
+      return p.isFork && !p.githubParentFullName;
+    }
+    return true;
+  });
   if (toCheck.length === 0) return;
 
   const ghClient = client ?? (await GitHubClient.create());
