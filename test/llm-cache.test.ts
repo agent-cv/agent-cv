@@ -5,6 +5,8 @@ import { join } from "node:path";
 import {
   getCachedAnalysis,
   setCachedAnalysis,
+  getCachedRaw,
+  setCachedRaw,
 } from "@agent-cv/core/src/analysis/cache.ts";
 import type { ProjectContext, ProjectAnalysis } from "@agent-cv/core/src/types.ts";
 
@@ -84,6 +86,27 @@ describe("llm cache", () => {
     process.env.AGENT_CV_NO_CACHE = "1";
     await setCachedAnalysis(ctx(), "claude", "3", sampleResult);
     const r = await getCachedAnalysis(ctx(), "claude", "3");
+    expect(r).toBeNull();
+  });
+});
+
+describe("llm cache (raw prompt)", () => {
+  it("round-trips by raw prompt", async () => {
+    await setCachedRaw("hello", "claude", "3", "bio:year", sampleResult);
+    const r = await getCachedRaw("hello", "claude", "3", "bio:year");
+    expect(r).toEqual(sampleResult);
+  });
+
+  it("isolates by namespace", async () => {
+    await setCachedRaw("hello", "claude", "3", "bio:year", sampleResult);
+    const r = await getCachedRaw("hello", "claude", "3", "bio:profile");
+    expect(r).toBeNull();
+  });
+
+  it("raw and structured do not collide", async () => {
+    // Same prompt text used as raw must not satisfy a structured lookup
+    await setCachedRaw("anything", "claude", "3", "bio:year", sampleResult);
+    const r = await getCachedAnalysis(ctx({ readme: "anything" }), "claude", "3");
     expect(r).toBeNull();
   });
 });

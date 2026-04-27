@@ -1,5 +1,7 @@
 import type { AgentAdapter, ProfileInsights, Project, ProjectContext, YearlyInsight, YearlyTheme } from "../types.ts";
+import { PROMPT_VERSION } from "../types.ts";
 import { mergeYearlyEngagementSections } from "./project-engagement.ts";
+import { getCachedRaw, setCachedRaw } from "../analysis/cache.ts";
 
 export type { YearlyInsight, YearlyTheme } from "../types.ts";
 
@@ -242,10 +244,15 @@ async function analyzeYear(
   const prompt = promptParts.join("\n");
 
   try {
-    const result = await adapter.analyze({
-      path: "", readme: "", dependencies: "", directoryTree: "", gitShortlog: "",
-      recentCommits: "", rawPrompt: prompt,
-    });
+    // Local content-hash cache: same year inputs → skip the LLM round-trip.
+    let result = await getCachedRaw(prompt, adapter.name, PROMPT_VERSION, "bio:year");
+    if (!result) {
+      result = await adapter.analyze({
+        path: "", readme: "", dependencies: "", directoryTree: "", gitShortlog: "",
+        recentCommits: "", rawPrompt: prompt,
+      });
+      void setCachedRaw(prompt, adapter.name, PROMPT_VERSION, "bio:year", result);
+    }
     const text = result.summary || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -356,10 +363,14 @@ async function generateAggregateProfile(
   ].join("\n");
 
   try {
-    const result = await adapter.analyze({
-      path: "", readme: "", dependencies: "", directoryTree: "", gitShortlog: "",
-      recentCommits: "", rawPrompt: prompt,
-    });
+    let result = await getCachedRaw(prompt, adapter.name, PROMPT_VERSION, "bio:profile");
+    if (!result) {
+      result = await adapter.analyze({
+        path: "", readme: "", dependencies: "", directoryTree: "", gitShortlog: "",
+        recentCommits: "", rawPrompt: prompt,
+      });
+      void setCachedRaw(prompt, adapter.name, PROMPT_VERSION, "bio:profile", result);
+    }
     const text = result.summary || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

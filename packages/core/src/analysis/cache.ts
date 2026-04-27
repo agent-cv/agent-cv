@@ -126,3 +126,62 @@ export async function setCachedAnalysis(
     // couldn't write to disk.
   }
 }
+
+/**
+ * Look up a cached LLM response for a raw prompt (used by bio-generator's
+ * yearly + profile aggregation calls — they pass `rawPrompt` to adapters
+ * rather than a structured ProjectContext).
+ *
+ * Namespaces are isolated via the `namespace` arg so a "bio:year" prompt
+ * cannot collide with a "bio:profile" prompt with identical text.
+ */
+export async function getCachedRaw(
+  prompt: string,
+  adapter: string,
+  promptVersion: string,
+  namespace: string
+): Promise<ProjectAnalysis | null> {
+  if (process.env.AGENT_CV_NO_CACHE === "1") return null;
+  const hash = hashKey(`raw:${namespace}\nadapter:${adapter}\nprompt:${promptVersion}\n${prompt}`);
+  const file = pathFor(hash);
+
+  let raw: string;
+  try {
+    raw = await readFile(file, "utf-8");
+  } catch {
+    return null;
+  }
+
+  let entry: CacheEntry;
+  try {
+    entry = JSON.parse(raw);
+  } catch {
+    void unlink(file).catch(() => {});
+    return null;
+  }
+  if (!entry?.result || typeof entry.storedAt !== "number") return null;
+  if (Date.now() - entry.storedAt > TTL_MS) {
+    void unlink(file).catch(() => {});
+    return null;
+  }
+  return entry.result;
+}
+
+export async function setCachedRaw(
+  prompt: string,
+  adapter: string,
+  promptVersion: string,
+  namespace: string,
+  result: ProjectAnalysis
+): Promise<void> {
+  if (process.env.AGENT_CV_NO_CACHE === "1") return;
+  const hash = hashKey(`raw:${namespace}\nadapter:${adapter}\nprompt:${promptVersion}\n${prompt}`);
+  const file = pathFor(hash);
+  const entry: CacheEntry = { result, storedAt: Date.now() };
+  try {
+    await mkdir(join(file, ".."), { recursive: true });
+    await writeFile(file, JSON.stringify(entry), "utf-8");
+  } catch {
+    /* best-effort */
+  }
+}
