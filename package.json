@@ -15,6 +15,8 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
+    "bench:ollama": "bun run scripts/bench-ollama.ts",
+    "bench:agent": "bun run scripts/bench-agent.ts",
     "build:npm": "bun run scripts/build-npm.ts",
     "build:binary": "bun build src/cli.ts --compile --outfile dist/agent-cv --minify",
     "postinstall": "lefthook install",

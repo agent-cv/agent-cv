@@ -27,8 +27,8 @@ export default function Publish({ args, options }: Props) {
 
   useInput(
     (input, key) => {
-      if (input === "y" || key.return) send({ type: "CONFIRM" });
-      else if (input === "n" || key.escape) send({ type: "CANCEL" });
+      if (input === "y" || input === "Y" || key.return) send({ type: "CONFIRM" });
+      else if (input === "n" || input === "N" || key.escape) send({ type: "CANCEL" });
     },
     { isActive: state.matches("confirming") && !options.yes }
   );
@@ -121,9 +121,11 @@ export default function Publish({ args, options }: Props) {
         <Text>
           Publish to agent-cv.dev?{" "}
           <Text color="green" bold>
-            (y)
-          </Text>{" "}
-          / <Text color="red">n</Text>
+            [Y]
+          </Text>
+          <Text color="gray">/</Text>
+          <Text color="red">n</Text>{" "}
+          <Text color="gray">(Enter = yes)</Text>
         </Text>
       </Box>
     );

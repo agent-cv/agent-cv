@@ -1,6 +1,6 @@
 import { readdir, stat, access, readFile } from "node:fs/promises";
 import simpleGit from "simple-git";
-import { join, basename, resolve, relative } from "node:path";
+import { join, basename, dirname, resolve, relative } from "node:path";
 import { createHash } from "node:crypto";
 import ignore, { type Ignore } from "ignore";
 import type { Project } from "../types.ts";
@@ -258,6 +258,88 @@ export async function scanDirectory(rootPath: string, options: ScanOptions = {})
   return { projects, errors };
 }
 
+/**
+ * Generic directory names that don't make useful project display names.
+ * When basename(dir) matches one of these, fall back to the parent dir name
+ * or — better — to a manifest-declared name.
+ */
+const GENERIC_DIR_NAMES = new Set([
+  "package", "src", "lib", "dist", "build", "app", "main", "core",
+  "client", "server", "frontend", "backend", "api", "web", "code",
+]);
+
+/**
+ * Resolve a human-friendly display name for the project. Order:
+ *   1. package.json `name` (scope stripped)
+ *   2. Cargo.toml `[package] name`
+ *   3. pyproject.toml `[project] name`
+ *   4. Git remote URL repo stem (if hasGit)
+ *   5. Parent dir name when basename(dir) is generic ("package", "src", etc)
+ *   6. basename(dir)
+ */
+async function resolveDisplayName(dir: string, hasGit: boolean): Promise<string> {
+  const fallback = basename(dir);
+
+  // 1. package.json name
+  try {
+    const raw = await readFile(join(dir, "package.json"), "utf-8");
+    const pkg = JSON.parse(raw);
+    if (typeof pkg.name === "string" && pkg.name.trim()) {
+      const scoped = pkg.name.match(/^@[^/]+\/(.+)$/);
+      const name = (scoped ? scoped[1] : pkg.name).trim();
+      if (name && !GENERIC_DIR_NAMES.has(name)) return name;
+    }
+  } catch {
+    /* */
+  }
+
+  // 2. Cargo.toml
+  try {
+    const raw = await readFile(join(dir, "Cargo.toml"), "utf-8");
+    const m = raw.match(/^\s*\[package\][\s\S]*?^\s*name\s*=\s*"([^"]+)"/m);
+    if (m && m[1]) return m[1];
+  } catch {
+    /* */
+  }
+
+  // 3. pyproject.toml — both PEP-621 [project] and Poetry [tool.poetry]
+  try {
+    const raw = await readFile(join(dir, "pyproject.toml"), "utf-8");
+    const project = raw.match(/^\s*\[project\][\s\S]*?^\s*name\s*=\s*"([^"]+)"/m);
+    if (project && project[1]) return project[1];
+    const poetry = raw.match(/^\s*\[tool\.poetry\][\s\S]*?^\s*name\s*=\s*"([^"]+)"/m);
+    if (poetry && poetry[1]) return poetry[1];
+  } catch {
+    /* */
+  }
+
+  // 4. Git remote URL repo stem
+  if (hasGit) {
+    try {
+      const remote = await extractRemoteUrl(dir);
+      if (remote) {
+        // git@github.com:user/repo.git → repo
+        // https://github.com/user/repo[.git] → repo
+        const m = remote.match(/[/:]([^/:]+?)(?:\.git)?\/?$/);
+        if (m && m[1] && !GENERIC_DIR_NAMES.has(m[1])) return m[1];
+      }
+    } catch {
+      /* */
+    }
+  }
+
+  // 5. Generic basename → use parent dir
+  if (GENERIC_DIR_NAMES.has(fallback)) {
+    const parent = basename(dirname(dir));
+    if (parent && parent !== "/" && parent !== "." && !GENERIC_DIR_NAMES.has(parent)) {
+      return parent;
+    }
+  }
+
+  // 6. basename
+  return fallback;
+}
+
 async function buildProject(
   dir: string,
   primaryMarker: (typeof PROJECT_MARKERS)[0] | undefined,
@@ -265,7 +347,7 @@ async function buildProject(
   hasGit: boolean,
   userEmails: Set<string>
 ): Promise<Project> {
-  const name = basename(dir);
+  const name = await resolveDisplayName(dir, hasGit);
   const id = createHash("sha256").update(dir).digest("hex").slice(0, 16);
 
   // Detect language from package.json if it's a node project

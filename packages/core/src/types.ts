@@ -190,6 +190,13 @@ export interface AgentAdapter {
   name: string;
   isAvailable(): Promise<boolean>;
   analyze(context: ProjectContext): Promise<ProjectAnalysis>;
+  /**
+   * Optional: maximum useful concurrency for this adapter. Local-runtime adapters
+   * (Ollama) serialize requests against a single loaded model, so the pipeline's
+   * default batch size of 8 wastes overhead. Cloud adapters omit this and use the
+   * pipeline default.
+   */
+  maxConcurrency?: number;
 }
 
 export interface ProjectContext {

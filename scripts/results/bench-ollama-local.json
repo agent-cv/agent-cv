@@ -1,0 +1,841 @@
+{
+  "runs": [
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6670,
+      "summary": "A TypeScript package for sending operational alerts to Telegram chat groups using a client and built-in templates.",
+      "techStack": [
+        "TypeScript",
+        "Telegram Bot API"
+      ],
+      "rawLen": 114,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 10910,
+      "summary": "This project provides a thin convenience layer for Telegram notification integration, offering typed payloads and shared",
+      "techStack": [
+        "typescript",
+        "eslint",
+        "vitest"
+      ],
+      "rawLen": 372,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 4352,
+      "summary": "This project provides a lightweight layer for managing Telegram bot interactions, streamlining workflows and improving c",
+      "techStack": [
+        "TypeScript",
+        "Node.js 18+",
+        "TypeScript-eslint",
+        "vitest",
+        "dotenv"
+      ],
+      "rawLen": 193,
+      "hallucinationScore": 0.8,
+      "hallucinated": [
+        "dotenv"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6076,
+      "summary": "This project is a collection of Rust crates designed for audio and video recording applications, utilizing libraries lik",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "nokhwa"
+      ],
+      "rawLen": 184,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 10493,
+      "summary": "This project appears to be a collection of Rust libraries and tools for audio processing, including polyrecorder-cli, po",
+      "techStack": [
+        "Rust",
+        "Tokio",
+        "Specta",
+        "CPAL",
+        "FFmpeg"
+      ],
+      "rawLen": 337,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 4762,
+      "summary": "This project focuses on building a robust audio processing pipeline using Rust, leveraging the `cpal`, `ffmpeg`, and `to",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "RustAudio"
+      ],
+      "rawLen": 381,
+      "hallucinationScore": 0.8,
+      "hallucinated": [
+        "RustAudio"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8255,
+      "summary": "Open Interface automates computer control by simulating keyboard and mouse input using LLMs like GPT-4o and Gemini.",
+      "techStack": [
+        "Python",
+        "PyAutoGUI",
+        "MouseInfo",
+        "Pillow",
+        "requests",
+        "openai"
+      ],
+      "rawLen": 115,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 14363,
+      "summary": "This project enables users to control their computers using large language models (LLMs), automating tasks and providing",
+      "techStack": [
+        "Python",
+        "PyAutoGUI",
+        "OpenAI",
+        "Gemini",
+        "httpx",
+        "requests",
+        "urllib3"
+      ],
+      "rawLen": 325,
+      "hallucinationScore": 0.8571428571428571,
+      "hallucinated": [
+        "Gemini"
+      ]
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5762,
+      "summary": "This project provides a self-driving computer system using LLMs, allowing users to automate tasks and course-correct by ",
+      "techStack": [
+        "Python",
+        "GPT-4o/Gemini/LLM backend",
+        "PyAutoGUI",
+        "MoviePy",
+        "PyScreeze",
+        "Pyimshow",
+        "Pycairo",
+        "Pycairo-backend",
+        "Pycairo-core",
+        "Pycairo-utils",
+        "Pycairo-utils-contrib",
+        "requests",
+        "PyQt"
+      ],
+      "rawLen": 266,
+      "hallucinationScore": 0.6153846153846154,
+      "hallucinated": [
+        "Pyimshow",
+        "Pycairo",
+        "Pycairo-backend",
+        "Pycairo-utils",
+        "PyQt"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7544,
+      "summary": "This project is a production-ready NestJS backend API for social media management with AI capabilities, replacing critic",
+      "techStack": [
+        "NestJS",
+        "AWS S3",
+        "Redis",
+        "OpenRouter",
+        "Twitter API v2",
+        "LinkedIn API",
+        "Facebook Graph API",
+        "Telegram Bot API"
+      ],
+      "rawLen": 156,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 12914,
+      "summary": "This project is a production-ready NestJS backend API for social media management with AI capabilities, featuring real-t",
+      "techStack": [
+        "NestJS",
+        "TypeScript",
+        "AWS S3",
+        "OpenRouter",
+        "Twitter API v2",
+        "LinkedIn API",
+        "Facebook Graph API",
+        "Telegram Bot API"
+      ],
+      "rawLen": 152,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5083,
+      "summary": "This project focuses on building a robust and scalable social media management backend API using NestJS, leveraging OAut",
+      "techStack": [
+        "NestJS",
+        "@aws-sdk",
+        "Bull",
+        "Redis",
+        "bcrypt",
+        "AWS S3",
+        "axios",
+        "JWT"
+      ],
+      "rawLen": 278,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6894,
+      "summary": "This project is a Rust-based media and cursor capture tool that leverages various libraries to enable real-time audio re",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "tauri",
+        "specta"
+      ],
+      "rawLen": 166,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 10806,
+      "summary": "This project appears to be a collection of Rust libraries and tools for audio processing and media handling. It includes",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "tauri",
+        "specta"
+      ],
+      "rawLen": 251,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5043,
+      "summary": "This project focuses on building a robust audio processing pipeline utilizing Rust and several established audio librari",
+      "techStack": [
+        "Rust",
+        "Cargo",
+        "Audio Processing Libraries (cpal, ffmpeg-next, tokio)",
+        "macOS Specific Frameworks (tauri, specta, nookwa-bindings-macos)",
+        "RustFFmpeg (for audio manipulation)"
+      ],
+      "rawLen": 218,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "pwnagotchi",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8440,
+      "summary": "Pwnagotchi is a Raspberry Pi-based tool that captures WPA key material using Bettercap for WiFi hacking. It can be used ",
+      "techStack": [
+        "Python",
+        "Bettercap",
+        "Hashcat",
+        "Flask",
+        "GPIOZero",
+        "Inky",
+        "Scapy"
+      ],
+      "rawLen": 199,
+      "hallucinationScore": 0.7142857142857143,
+      "hallucinated": [
+        "Bettercap",
+        "Hashcat"
+      ]
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "pwnagotchi",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 13248,
+      "summary": "Pwnagotchi is a Raspberry Pi-based tool that leverages bettercap to maximize crackable WPA key material from Wi-Fi envir",
+      "techStack": [
+        "Python",
+        "bettercap",
+        "hashcat",
+        "scapy",
+        "flask",
+        "gast",
+        "gpiozero"
+      ],
+      "rawLen": 301,
+      "hallucinationScore": 0.7142857142857143,
+      "hallucinated": [
+        "bettercap",
+        "hashcat"
+      ]
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "pwnagotchi",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7400,
+      "summary": "Pwnagotchi is a Raspberry Pi project focused on leveraging the bettercap framework and the PMKID client to enable wirele",
+      "techStack": [
+        "Python",
+        "PyYAML",
+        "dbus-python",
+        "file-read-backwards",
+        "flask",
+        "flask-cors",
+        "flask-wtf",
+        "gast",
+        "gpiozero",
+        "inky",
+        "numpy",
+        "pycryptodome",
+        "pydrive2",
+        "python-dateutil",
+        "requests",
+        "rpi-lgpio",
+        "rpi_hardware_pwm",
+        "scapy",
+        "setuptools",
+        "shimmy",
+        "smbus",
+        "smbus2",
+        "spidev",
+        "tomlkit",
+        "toml",
+        "tweepy",
+        "websockets",
+        "pisugar"
+      ],
+      "rawLen": 309,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7681,
+      "summary": "Baika Backend is a NestJS backend service for managing Telegram channels with AI content generation capabilities.",
+      "techStack": [
+        "NestJS",
+        "PostgreSQL",
+        "Prisma ORM",
+        "JWT",
+        "OpenRouter API",
+        "Grammy",
+        "Swagger"
+      ],
+      "rawLen": 113,
+      "hallucinationScore": 0.8571428571428571,
+      "hallucinated": [
+        "OpenRouter API"
+      ]
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 13460,
+      "summary": "This project implements a full-fledged backend API for managing Telegram channels with AI-generated content using NestJS",
+      "techStack": [
+        "NestJS",
+        "PostgreSQL",
+        "Prisma ORM",
+        "Grammy",
+        "Swagger"
+      ],
+      "rawLen": 261,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5176,
+      "summary": "This project provides a backend API for managing Telegram channels with AI-generated content, leveraging NestJS, Postgre",
+      "techStack": [
+        "NestJS",
+        "PostgreSQL",
+        "JWT",
+        "OpenRouter API",
+        "Grammy",
+        "Swagger"
+      ],
+      "rawLen": 264,
+      "hallucinationScore": 0.8333333333333334,
+      "hallucinated": [
+        "OpenRouter API"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "screen-studio-polyrecorder-tz",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8609,
+      "summary": "Polyrecorder is a macOS screen recording tool that captures video, audio, and input events, with features for device dis",
+      "techStack": [
+        "Rust",
+        "Clap",
+        "Serde",
+        "Tokio",
+        "Anyhow",
+        "Tracing",
+        "FFmpeg-next",
+        "Image",
+        "Rodio",
+        "Hound"
+      ],
+      "rawLen": 241,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "screen-studio-polyrecorder-tz",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 13698,
+      "summary": "This project is a polyrecorder tool for macOS that allows users to record screen, audio, and input events. It provides f",
+      "techStack": [
+        "Rust",
+        "FFmpeg",
+        "Tokio",
+        "Clap",
+        "Serde",
+        "Scap"
+      ],
+      "rawLen": 214,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "screen-studio-polyrecorder-tz",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5301,
+      "summary": "Polyrecorder is a macOS application for recording, analyzing, and managing screen, audio, and keyboard events. It provid",
+      "techStack": [
+        "Rust",
+        "macOS",
+        "CMake",
+        "Cargo",
+        "JSON",
+        "Bash",
+        "grep",
+        "sed",
+        "awk"
+      ],
+      "rawLen": 309,
+      "hallucinationScore": 0.4444444444444444,
+      "hallucinated": [
+        "macOS",
+        "CMake",
+        "grep",
+        "sed",
+        "awk"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "earning-protocol-model",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6808,
+      "summary": "This project provides a comprehensive Earning Model Analysis tool using Python and Streamlit, allowing users to analyze ",
+      "techStack": [
+        "Python",
+        "Streamlit",
+        "Jupyter Notebook"
+      ],
+      "rawLen": 151,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "earning-protocol-model",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 10370,
+      "summary": "This project appears to be a Streamlit application for earning models, with various dependencies related to data process",
+      "techStack": [
+        "Python",
+        "Streamlit",
+        "Pandas",
+        "NumPy"
+      ],
+      "rawLen": 142,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "earning-protocol-model",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 9015,
+      "summary": "This project focuses on building a robust and scalable Python application for data analysis and model management, levera",
+      "techStack": [
+        "Python",
+        "Altair",
+        "argon2-cffi",
+        "argon2-cffi-bindings",
+        "asttokens",
+        "attrs",
+        "backcall",
+        "beautifulsoup4",
+        "bleach",
+        "blinker",
+        "cachetools",
+        "certifi",
+        "cffi",
+        "charset-normalizer",
+        "click",
+        "commonmark",
+        "debugpy",
+        "decorator",
+        "defusedxml",
+        "entrypoints",
+        "executing",
+        "fastjsonschema",
+        "gitdb",
+        "Jinja2",
+        "jsonschema",
+        "jupyter-client",
+        "jupyter-core",
+        "jupyterlab-pygments",
+        "jupyterlab-widgets",
+        "MarkupSafe",
+        "matplotlib-inline",
+        "mistune",
+        "nbclient",
+        "nbconvert",
+        "nbformat",
+        "nest-asyncio",
+        "notebook",
+        "numpy",
+        "packaging",
+        "pandas",
+        "pandocfilters",
+        "parso",
+        "pexpect",
+        "pickleshare",
+        "Pillow",
+        "prometheus-client",
+        "prompt-toolkit",
+        "protobuf",
+        "psutil"
+      ],
+      "rawLen": 207,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "frontend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7761,
+      "summary": "This project provides a modern website template with built-in features for easy editing, live preview, and auto-sync to ",
+      "techStack": [
+        "React",
+        "@radix-ui/react",
+        "@tanstack/react-query"
+      ],
+      "rawLen": 130,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "frontend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 12748,
+      "summary": "This project is a modern website with features like easy editing, live preview, and auto-syncing to the cloud. It uses v",
+      "techStack": [
+        "TypeScript",
+        "Vite",
+        "Radix UI",
+        "React Query"
+      ],
+      "rawLen": 295,
+      "hallucinationScore": 0.75,
+      "hallucinated": [
+        "Radix UI"
+      ]
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "frontend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5251,
+      "summary": "This project provides a foundation for building a modern website with a focus on ease of use, live previews, and compone",
+      "techStack": [
+        "TypeScript",
+        "React",
+        "Redux",
+        "Styled Components",
+        "Axios",
+        "Formik",
+        "React Router",
+        "Tailwind CSS"
+      ],
+      "rawLen": 265,
+      "hallucinationScore": 0.5,
+      "hallucinated": [
+        "Redux",
+        "Styled Components",
+        "Axios",
+        "Formik"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "multirecorder",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8612,
+      "summary": "MultiRecorder is a Rust-based application designed to discover and manage audio/video devices across multiple platforms,",
+      "techStack": [
+        "Rust",
+        "Clap",
+        "Serde",
+        "Tokio",
+        "Anyhow",
+        "Tracing",
+        "Crossbeam-Channel",
+        "Log",
+        "Core-graphics",
+        "Core-foundation",
+        "Core-video",
+        "Cocoa",
+        "Objc",
+        "Objc-id",
+        "Coreaudio-sys",
+        "Coreaudio-rs"
+      ],
+      "rawLen": 219,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "multirecorder",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 13315,
+      "summary": "A Rust-based application for discovering and managing audio/video devices across multiple platforms, providing reliable ",
+      "techStack": [
+        "Rust",
+        "macOS",
+        "Linux",
+        "Windows",
+        "X11",
+        "Wayland"
+      ],
+      "rawLen": 153,
+      "hallucinationScore": 0.5,
+      "hallucinated": [
+        "macOS",
+        "Linux",
+        "Wayland"
+      ]
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "multirecorder",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5764,
+      "summary": "MultiRecorder is a Rust-based application for discovering and managing audio/video devices across multiple platforms, fo",
+      "techStack": [
+        "Rust",
+        "Cargo",
+        "clap",
+        "serde",
+        "tokio",
+        "anyhow",
+        "core-graphics",
+        "core-foundation",
+        "core-video",
+        "cocoa",
+        "objc",
+        "coreaudio-rs",
+        "crossbeam-channel",
+        "tracing"
+      ],
+      "rawLen": 276,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "api",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7915,
+      "summary": "An AI-powered food analysis API built with NestJS that uses OpenRouter for accurate food recognition and provides detail",
+      "techStack": [
+        "NestJS",
+        "OpenRouter",
+        "GPT-4 Vision",
+        "Multer",
+        "Axios"
+      ],
+      "rawLen": 147,
+      "hallucinationScore": 0.8,
+      "hallucinated": [
+        "GPT-4 Vision"
+      ]
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "api",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 12354,
+      "summary": "This project is an AI-powered food analysis API built with NestJS that analyzes food photos and provides detailed nutrit",
+      "techStack": [
+        "NestJS",
+        "OpenRouter",
+        "GPT-4 Vision",
+        "Multer",
+        "Express",
+        "Swagger"
+      ],
+      "rawLen": 138,
+      "hallucinationScore": 0.8333333333333334,
+      "hallucinated": [
+        "GPT-4 Vision"
+      ]
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "api",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5688,
+      "summary": "CalSnap API is a food analysis API leveraging OpenAI's GPT-4 Vision for automated nutritional information extraction fro",
+      "techStack": [
+        "JavaScript",
+        "NestJS",
+        "OpenRouter",
+        "OpenRouter.ai",
+        "Fastify",
+        "Axios",
+        "React",
+        "TypeScript",
+        "ESLint",
+        "Prettier"
+      ],
+      "rawLen": 230,
+      "hallucinationScore": 0.8,
+      "hallucinated": [
+        "Fastify",
+        "React"
+      ]
+    }
+  ],
+  "projects": [
+    "/Users/devall/Projects/orgs/TacticLaunch/alerts",
+    "/Users/devall/Projects/orgs/TacticLaunch/screen-studio-polyrecorder-rust",
+    "/Users/devall/Projects/orgs/beautyfree/tmp/Open-Interface",
+    "/Users/devall/Projects/orgs/TacticLaunch/backend",
+    "/Users/devall/Projects/orgs/TacticLaunch/screen-studio-polyrecorder-rust-cap",
+    "/Users/devall/Projects/orgs/beautyfree/tmp/pwnagotchi",
+    "/Users/devall/Projects/orgs/TacticLaunch/baika/backend",
+    "/Users/devall/Projects/orgs/TacticLaunch/screen-studio-polyrecorder-tz",
+    "/Users/devall/Projects/orgs/p2p-org/earning-protocol-model",
+    "/Users/devall/Projects/orgs/TacticLaunch/baika/frontend",
+    "/Users/devall/Projects/orgs/TacticLaunch/tmp/multirecorder",
+    "/Users/devall/Projects/orgs/TacticLaunch/calsnap/api"
+  ],
+  "models": [
+    "qwen2.5-coder:3b",
+    "llama3.2:latest",
+    "gemma3:1b"
+  ]
+}

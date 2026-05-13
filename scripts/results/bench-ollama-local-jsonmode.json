@@ -1,0 +1,411 @@
+{
+  "runs": [
+    {
+      "model": "qwen2.5-coder:0.5b",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 3930,
+      "summary": "A TypeScript package for TacticLaunch apps that provides a client, transports, and templates for lifecycle and digest-st",
+      "techStack": [
+        "TypeScript",
+        "Telegram Bot API"
+      ],
+      "rawLen": 133,
+      "hallucinationScore": 0.5,
+      "hallucinated": [
+        "Telegram Bot API"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6731,
+      "summary": "This project provides a typed client for sending operational alerts to Telegram using the TacticLaunch services, with bu",
+      "techStack": [
+        "TypeScript",
+        "Telegram Bot API"
+      ],
+      "rawLen": 165,
+      "hallucinationScore": 0.5,
+      "hallucinated": [
+        "Telegram Bot API"
+      ]
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 19808,
+      "summary": "This project provides a thin convenience layer for Telegram operational alerts, offering typed payloads and shared vocab",
+      "techStack": [
+        "typescript",
+        "tsup",
+        "eslint",
+        "vitest"
+      ],
+      "rawLen": 344,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "alerts",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8326,
+      "summary": "This project provides a lightweight, Telegram-centric alert layer for operational dashboards, streamlining communication",
+      "techStack": [
+        "TypeScript",
+        "TypeScript-eslint",
+        "dotenv",
+        "typescript-guard",
+        "lodash"
+      ],
+      "rawLen": 194,
+      "hallucinationScore": 0.6,
+      "hallucinated": [
+        "dotenv",
+        "lodash"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:0.5b",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 9936,
+      "summary": "Polyrecorder CLI is a command-line tool for recording and playing back audio streams using Rust.",
+      "techStack": [
+        "Rust",
+        "Audio Processing",
+        "Concurrency",
+        "File I/O"
+      ],
+      "rawLen": 96,
+      "hallucinationScore": 0.25,
+      "hallucinated": [
+        "Audio Processing",
+        "Concurrency",
+        "File I/O"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6729,
+      "summary": "This project is a comprehensive suite of Rust libraries and tools for audio recording, video capture, and media processi",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "nokhwa"
+      ],
+      "rawLen": 277,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8589,
+      "summary": "This project appears to be a development environment for an audio-related application, utilizing various Rust libraries ",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "specta"
+      ],
+      "rawLen": 135,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "screen-studio-polyrecorder-rust",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5541,
+      "summary": "This project focuses on building a robust audio processing pipeline using Rust, leveraging the `cpal` and `ffmpeg` libra",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "specta",
+        "scap",
+        "nokhwa"
+      ],
+      "rawLen": 372,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:0.5b",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 3046,
+      "summary": "An open-source interface for interacting with LLMs using Python, offering a seamless and efficient way to automate tasks",
+      "techStack": [
+        "Python",
+        "OpenAI",
+        "GPT-4o",
+        "Gemini",
+        "GPT4v"
+      ],
+      "rawLen": 141,
+      "hallucinationScore": 0.4,
+      "hallucinated": [
+        "GPT-4o",
+        "Gemini",
+        "GPT4v"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 8057,
+      "summary": "Open Interface automates computer control using LLMs, offering a full-autopilot solution for all computers.",
+      "techStack": [
+        "Python",
+        "PyAutoGUI",
+        "MouseInfo",
+        "Pillow",
+        "requests",
+        "openai",
+        "moviepy"
+      ],
+      "rawLen": 107,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 14508,
+      "summary": "This project enables users to control their computers using large language models (LLMs), automating tasks and providing",
+      "techStack": [
+        "Python",
+        "PyAutoGUI",
+        "httpx",
+        "openai",
+        "PyAudio"
+      ],
+      "rawLen": 325,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "Open-Interface",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5257,
+      "summary": "This project provides a self-driving computer interface using LLMs, enabling automated task execution through keyboard a",
+      "techStack": [
+        "Python",
+        "GPT-4o/Gemini/LLM backend",
+        "PyAutoGUI",
+        "PyScreeze",
+        "requests",
+        "pillow",
+        "Pyimshow"
+      ],
+      "rawLen": 248,
+      "hallucinationScore": 0.7142857142857143,
+      "hallucinated": [
+        "GPT-4o/Gemini/LLM backend",
+        "Pyimshow"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:0.5b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 2672,
+      "summary": "A robust social media management backend with AI capabilities.",
+      "techStack": [
+        "NestJS",
+        "Express",
+        "AWS S3",
+        "Bull Board API",
+        "Redis",
+        "OpenRouter",
+        "Prisma",
+        "TypeScript"
+      ],
+      "rawLen": 62,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 7623,
+      "summary": "This NestJS backend API provides a comprehensive social media management solution with AI capabilities, including authen",
+      "techStack": [
+        "NestJS",
+        "AWS S3",
+        "Redis",
+        "OpenRouter AI SDK",
+        "Twitter API v2",
+        "LinkedIn API",
+        "Facebook Graph API",
+        "Telegram Bot API"
+      ],
+      "rawLen": 254,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 11942,
+      "summary": "A production-ready NestJS backend API for social media management with AI capabilities, featuring real-time analytics an",
+      "techStack": [
+        "NestJS",
+        "AWS S3",
+        "OpenRouter",
+        "Twitter API v2",
+        "LinkedIn API",
+        "Facebook Graph API",
+        "Telegram Bot API",
+        "Bull Queue"
+      ],
+      "rawLen": 136,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "backend",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 5234,
+      "summary": "This project focuses on building a robust and scalable social media management backend API using NestJS, leveraging OAut",
+      "techStack": [
+        "NestJS",
+        "@aws-sdk",
+        "OpenRouter",
+        "OpenRouter-AI",
+        "Bull",
+        "Redis",
+        "bcrypt",
+        "prisma",
+        "AWS S3",
+        "axios",
+        "dotenv"
+      ],
+      "rawLen": 317,
+      "hallucinationScore": 0.9090909090909091,
+      "hallucinated": [
+        "dotenv"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:0.5b",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 2693,
+      "summary": "An interactive tool for recording and analyzing audio streams.",
+      "techStack": [
+        "Rust",
+        "Audio Processing",
+        "Data Structures"
+      ],
+      "rawLen": 62,
+      "hallucinationScore": 0.6666666666666666,
+      "hallucinated": [
+        "Data Structures"
+      ]
+    },
+    {
+      "model": "qwen2.5-coder:3b",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 6856,
+      "summary": "This project is a Rust-based multimedia application that captures and records audio, video, and cursor movements using v",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "tauri",
+        "specta"
+      ],
+      "rawLen": 227,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "llama3.2:latest",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 10915,
+      "summary": "This project appears to be a Rust-based audio processing and media application, with features including audio stream man",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "specta",
+        "tokio"
+      ],
+      "rawLen": 350,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    },
+    {
+      "model": "gemma3:1b",
+      "project": "screen-studio-polyrecorder-rust-cap",
+      "ok": true,
+      "jsonValid": true,
+      "latencyMs": 4524,
+      "summary": "This project focuses on developing a robust audio processing pipeline using Rust, leveraging audio codecs like cpal and ",
+      "techStack": [
+        "Rust",
+        "cpal",
+        "ffmpeg",
+        "tokio",
+        "tauri",
+        "specta"
+      ],
+      "rawLen": 241,
+      "hallucinationScore": 1,
+      "hallucinated": []
+    }
+  ],
+  "projects": [
+    "/Users/devall/Projects/orgs/TacticLaunch/alerts",
+    "/Users/devall/Projects/orgs/TacticLaunch/screen-studio-polyrecorder-rust",
+    "/Users/devall/Projects/orgs/beautyfree/tmp/Open-Interface",
+    "/Users/devall/Projects/orgs/TacticLaunch/backend",
+    "/Users/devall/Projects/orgs/TacticLaunch/screen-studio-polyrecorder-rust-cap"
+  ],
+  "models": [
+    "qwen2.5-coder:0.5b",
+    "qwen2.5-coder:3b",
+    "llama3.2:latest",
+    "gemma3:1b"
+  ]
+}

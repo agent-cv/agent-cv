@@ -3,18 +3,33 @@ import { parseOllamaAnalysisResponse } from "../api-parse.ts";
 
 const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 
-/** Default model for new installs and the green "recommended" label in the picker. */
+/**
+ * Default model for new installs and the green "recommended" label in the picker.
+ * Chosen for accuracy on local bench (see scripts/bench-ollama.ts): qwen2.5-coder:3b
+ * scored 87% ground-truth-stack match at ~10s/project — best of installed options.
+ * If a stronger 4B model is already installed (qwen3.5:4b, gemma4:e4b), auto-detect
+ * picks it first via PREFERRED_OLLAMA_MODELS order in `isAvailable()`.
+ */
 export const RECOMMENDED_OLLAMA_MODEL = "qwen2.5-coder:3b";
 
-// Preferred models in priority order — code-specialized small models first (picker + auto-detect).
+// Preferred models in priority order — auto-detect picks the first installed match.
+// qwen2.5-coder:3b first because scripts/bench-ollama.ts verified 87% gt-score on
+// 5 mixed projects (vs 85% llama3.2, 74% gemma3:1b, 54% qwen2.5-coder:0.5b).
+// 4B-class candidates listed after — user can opt in by pulling them.
 export const PREFERRED_OLLAMA_MODELS: readonly string[] = [
-  "qwen2.5-coder:3b", // Default sweet spot: code + small
+  "qwen2.5-coder:3b", // Verified default: 87% gt-score, ~10s/project on local bench
+  "qwen3.5:4b", // 4B class winner per public benchmarks (unverified locally; ~2.5GB)
+  "gemma4:e4b", // Native tool calling + 128k context (~9.6GB)
+  "ministral-3:3b", // Mistral edge-tuned, native JSON / function calling
   "qwen2.5-coder:7b",
   "qwen2.5-coder:14b",
-  "qwen2.5-coder:1.5b", // Faster A/B than 3b
-  "qwen2.5-coder:0.5b", // Lightest Qwen2.5-Coder; JSON quality may drop
+  "qwen2.5-coder:1.5b",
+  "qwen2.5-coder:0.5b",
   "qwen2.5-coder:latest",
+  "gemma4:e2b", // Lightest Gemma 4 for very constrained boxes
+  "gemma4:26b", // MoE ~3.8B active; needs 24GB+ RAM
   "qwen3-coder:30b", // MoE ~3.3B active, ~19GB; agentic / long context
+  "smollm3:3b", // HF reasoning 3B with /think mode, 64k→128k YaRN
   "deepseek-coder-v2:lite",
   "phi4-mini",
   "gemma3:4b",
@@ -28,6 +43,12 @@ export const PREFERRED_OLLAMA_MODELS: readonly string[] = [
  * Shown in the CLI picker until the model is installed.
  */
 export const OLLAMA_MODEL_SIZE_HINTS: Readonly<Record<string, number>> = {
+  "qwen3.5:4b": 2.5e9,
+  "gemma4:e4b": 9.6e9,
+  "gemma4:e2b": 7.2e9,
+  "gemma4:26b": 18e9,
+  "ministral-3:3b": 1.8e9,
+  "smollm3:3b": 1.8e9,
   "qwen2.5-coder:3b": 1.9e9,
   "qwen2.5-coder:7b": 4.7e9,
   "qwen2.5-coder:14b": 9e9,
@@ -100,6 +121,12 @@ export function mergePreferredAndInstalledOllamaModels(
  */
 export class OllamaAdapter implements AgentAdapter {
   name = "ollama";
+  /**
+   * Local Ollama serializes requests against a single loaded model by default.
+   * Use 1 unless the user has explicitly set OLLAMA_NUM_PARALLEL on the daemon.
+   * The pipeline reads this to override its default batch size of 8.
+   */
+  maxConcurrency = Number(process.env.OLLAMA_NUM_PARALLEL) || 1;
   private baseUrl: string;
   private model: string | null;
   private detectedModel: string | null = null;
@@ -195,19 +222,25 @@ export class OllamaAdapter implements AgentAdapter {
     const systemPrompt =
       "You analyze software projects. You return ONLY valid JSON. Never copy example values. Base your analysis strictly on the provided project data.";
 
-    // Use OpenAI-compatible endpoint
+    // Use OpenAI-compatible endpoint. `response_format: json_object` forces the
+    // model to emit syntactically valid JSON, eliminating regex-extraction failures
+    // we used to see on small models. Skip when caller wants raw text (bio prompts).
+    const body: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.3,
+      stream: false,
+    };
+    if (!context.rawPrompt) {
+      body.response_format = { type: "json_object" };
+    }
     const response = await fetchWithTimeout(`${this.baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.3,
-        stream: false,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

@@ -6,6 +6,7 @@ import { CursorAdapter } from "@agent-cv/core/src/analysis/adapters/cursor-adapt
 import { OpenCodeAdapter } from "@agent-cv/core/src/analysis/adapters/opencode-adapter.ts";
 import {
   mergePreferredAndInstalledOllamaModels,
+  OLLAMA_MODEL_SIZE_HINTS,
   OllamaAdapter,
   RECOMMENDED_OLLAMA_MODEL,
 } from "@agent-cv/core/src/analysis/adapters/ollama-adapter.ts";
@@ -134,7 +135,9 @@ export function AgentPicker({ onSubmit, onBack, defaultAgent }: Props) {
                 const res = await fetch("http://localhost:11434/api/tags", { signal: AbortSignal.timeout(2000) });
                 if (res.ok) {
                   opt.available = true;
-                  opt.detail = `press Enter to download ${RECOMMENDED_OLLAMA_MODEL} (1.9 GB)`;
+                  const sizeBytes = OLLAMA_MODEL_SIZE_HINTS[RECOMMENDED_OLLAMA_MODEL] ?? 2e9;
+                  const sizeGb = (sizeBytes / 1e9).toFixed(1);
+                  opt.detail = `press Enter to download ${RECOMMENDED_OLLAMA_MODEL} (${sizeGb} GB)`;
                 }
               } catch {
                 /* Ollama not running */

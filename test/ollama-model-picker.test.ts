@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   mergePreferredAndInstalledOllamaModels,
+  OllamaAdapter,
   PREFERRED_OLLAMA_MODELS,
   RECOMMENDED_OLLAMA_MODEL,
 } from "@agent-cv/core/src/analysis/adapters/ollama-adapter.ts";
@@ -27,5 +28,24 @@ describe("mergePreferredAndInstalledOllamaModels", () => {
     const m = list.find((x) => x.name === "mistral:latest");
     expect(m?.needsDownload).toBe(false);
     expect(m?.size).toBe(4.4e9);
+  });
+});
+
+describe("OllamaAdapter concurrency hint", () => {
+  test("defaults to 1 — local Ollama serializes requests on single model instance", () => {
+    const prev = process.env.OLLAMA_NUM_PARALLEL;
+    delete process.env.OLLAMA_NUM_PARALLEL;
+    const a = new OllamaAdapter();
+    expect(a.maxConcurrency).toBe(1);
+    if (prev !== undefined) process.env.OLLAMA_NUM_PARALLEL = prev;
+  });
+
+  test("respects OLLAMA_NUM_PARALLEL when set on daemon", () => {
+    const prev = process.env.OLLAMA_NUM_PARALLEL;
+    process.env.OLLAMA_NUM_PARALLEL = "4";
+    const a = new OllamaAdapter();
+    expect(a.maxConcurrency).toBe(4);
+    if (prev === undefined) delete process.env.OLLAMA_NUM_PARALLEL;
+    else process.env.OLLAMA_NUM_PARALLEL = prev;
   });
 });

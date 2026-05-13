@@ -166,11 +166,15 @@ export async function analyzeProjects(
   for (const p of toAnalyze) {
     onProjectStatus?.(p.id, "queued");
   }
-  // Concurrency: option > AGENT_CV_CONCURRENCY env > 8 default.
+  // Concurrency: explicit option > AGENT_CV_CONCURRENCY env > adapter hint > 8 default.
+  // Adapter hint matters for local runtimes (Ollama) that serialize on a single model
+  // instance; sending 8 parallel requests just wastes overhead.
   const BATCH_SIZE = (() => {
     if (concurrency && concurrency > 0) return concurrency;
     const env = Number(process.env.AGENT_CV_CONCURRENCY);
-    return Number.isFinite(env) && env > 0 ? env : 8;
+    if (Number.isFinite(env) && env > 0) return env;
+    if (adapter.maxConcurrency && adapter.maxConcurrency > 0) return adapter.maxConcurrency;
+    return 8;
   })();
   const CIRCUIT_BREAKER_THRESHOLD = 3; // consecutive failures to trigger
   let completed = 0;
