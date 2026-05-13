@@ -38,6 +38,5 @@ test/fixtures/sample-node-project
 test/fixtures/sample-python-project
 test/fixtures/project-with-secrets
 
-# bun lockfile (generated)
-bun.lock
+# bun lockfile is committed for reproducible CI installs and release builds.
 .gstack/
