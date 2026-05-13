@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "bettersync": "file:../../../bettersync/dist-tarballs/bettersync-0.0.1.tgz"
+    "bettersync": "^0.0.5"
   },
   "devDependencies": {
     "tsup": "^8.3.5",
