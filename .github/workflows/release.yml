@@ -39,12 +39,15 @@ jobs:
           - os: macos-latest
             target: bun-darwin-arm64
             artifact: agent-cv-darwin-arm64
-          - os: macos-13
+          - os: macos-latest
             target: bun-darwin-x64
             artifact: agent-cv-darwin-x64
           - os: ubuntu-latest
             target: bun-linux-x64
             artifact: agent-cv-linux-x64
+          # darwin-x64 is cross-compiled from macos-latest (Apple Silicon).
+          # Bun's --compile --target bun-darwin-x64 supports cross-targets
+          # so we don't need a scarce macos-13 Intel runner.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
