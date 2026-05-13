@@ -58,6 +58,13 @@ const PROJECT_MARKERS: Array<{
   type: string;
   language: string;
 }> = [
+  // Order matters: first match wins. Place ecosystem-specific markers
+  // BEFORE generic ones (Anchor.toml before Cargo.toml, foundry.toml before
+  // package.json) so a Solana program reports as Solana, not bare Rust.
+  { file: "Anchor.toml", type: "solana", language: "Rust" },
+  { file: "foundry.toml", type: "solidity", language: "Solidity" },
+  { file: "hardhat.config.ts", type: "solidity", language: "Solidity" },
+  { file: "hardhat.config.js", type: "solidity", language: "Solidity" },
   { file: "package.json", type: "node", language: "JavaScript" },
   { file: "Cargo.toml", type: "rust", language: "Rust" },
   { file: "go.mod", type: "go", language: "Go" },
@@ -66,6 +73,7 @@ const PROJECT_MARKERS: Array<{
   { file: "setup.py", type: "python", language: "Python" },
   { file: "Gemfile", type: "ruby", language: "Ruby" },
   { file: "pom.xml", type: "java", language: "Java" },
+  { file: "build.gradle.kts", type: "kotlin", language: "Kotlin" },
   { file: "build.gradle", type: "java", language: "Java" },
   { file: "Makefile", type: "make", language: "C/C++" },
   { file: "Dockerfile", type: "docker", language: "Docker" },

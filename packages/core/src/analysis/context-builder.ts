@@ -85,14 +85,26 @@ async function getDependencies(
     }
   }
 
-  // Try other manifests
+  // Try other manifests (order: ecosystem-specific first so Solana/Solidity wins
+  // over bare Cargo/JS when both present).
   const manifests = [
+    "Anchor.toml",
+    "foundry.toml",
+    "hardhat.config.ts",
+    "hardhat.config.js",
     "Cargo.toml",
     "go.mod",
     "pyproject.toml",
     "requirements.txt",
+    "setup.py",
     "Gemfile",
     "composer.json",
+    "pubspec.yaml",
+    "Package.swift",
+    "mix.exs",
+    "build.gradle.kts",
+    "build.gradle",
+    "pom.xml",
   ];
   for (const name of manifests) {
     if (excluded.has(name)) continue;
