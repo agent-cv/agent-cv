@@ -2,11 +2,17 @@ import { describe, test, expect } from "bun:test";
 import { resolveAdapter } from "@agent-cv/core/src/analysis/adapters/resolve-adapter.ts";
 
 describe("resolveAdapter", () => {
-  test("auto resolves to an available adapter", async () => {
-    const { adapter, name } = await resolveAdapter("auto");
-    expect(adapter).toBeDefined();
-    expect(name).toBeTruthy();
-    expect(typeof adapter.analyze).toBe("function");
+  test("auto resolves to an available adapter, or errors clearly when none installed", async () => {
+    try {
+      const { adapter, name } = await resolveAdapter("auto");
+      expect(adapter).toBeDefined();
+      expect(name).toBeTruthy();
+      expect(typeof adapter.analyze).toBe("function");
+    } catch (err: any) {
+      // CI environments without Claude/Codex/Ollama/API key hit this branch.
+      // Acceptable as long as the error is the helpful "install one of" message.
+      expect(err.message).toContain("No AI agent or API key found");
+    }
   });
 
   test("throws for unknown adapter name", async () => {
