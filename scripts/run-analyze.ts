@@ -53,9 +53,12 @@ async function main() {
   }
   console.error(`> ollama model: ${adapter.getModel()}, maxConcurrency=${adapter.maxConcurrency}`);
 
-  // Selection: only included, only unanalyzed.
-  let queue = inv.projects.filter((p) => p.included !== false && !p.analysis);
-  console.error(`> unanalyzed: ${queue.length} / included: ${inv.projects.filter((p) => p.included !== false).length}`);
+  // Pass all included projects to analyzeProjects — it checks PROMPT_VERSION,
+  // lastCommit, and analysis presence to decide what to (re)analyze. Limiting
+  // here to only `!p.analysis` previously masked PROMPT_VERSION bumps.
+  let queue = inv.projects.filter((p) => p.included !== false);
+  const stale = queue.filter((p) => !p.analysis || p.analysis.promptVersion !== "4").length;
+  console.error(`> included: ${queue.length}; needs reanalyze (no analysis or stale prompt version): ${stale}`);
   if (args.limit) {
     queue = queue.slice(0, args.limit);
     console.error(`> capped to first ${queue.length} by --limit`);

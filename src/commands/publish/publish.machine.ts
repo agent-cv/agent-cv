@@ -4,6 +4,7 @@ import { type AuthToken } from "@agent-cv/core/src/auth/index.ts";
 import { publishViaSync } from "@agent-cv/core/src/sync/publish.ts";
 import type { Inventory, Project } from "@agent-cv/core/src/types.ts";
 import type { PipelineResult } from "../../components/Pipeline.tsx";
+import { resolveScanPathActor } from "../shared-actors.ts";
 
 export type PublishFlowOptions = {
   all?: boolean;
@@ -34,24 +35,6 @@ type Ctx = {
   resultUrl: string;
 };
 
-const resolvePathActor = fromPromise(async () => {
-  let inv;
-  try {
-    inv = await readInventory();
-  } catch {
-    throw new Error(
-      "No directory specified.\nUsage: agent-cv publish <directory>\n   or: agent-cv publish --fresh <directory>"
-    );
-  }
-  const paths = inv.scanPaths?.filter(Boolean) || [];
-  if (paths.length === 0) {
-    throw new Error(
-      "No directory specified and no previous scan paths found.\nUsage: agent-cv publish <directory>\n   or: agent-cv publish --fresh <directory>"
-    );
-  }
-  const pick = paths.length === 1 ? paths[0]! : paths[paths.length - 1]!;
-  return { directory: pick };
-});
 
 const loadCacheActor = fromPromise(async () => {
   const inv = await readInventory();
@@ -85,7 +68,7 @@ export const publishFlowMachine = setup({
     input: {} as PublishFlowInput,
   },
   actors: {
-    resolvePath: resolvePathActor,
+    resolvePath: resolveScanPathActor,
     loadCache: loadCacheActor,
     publishToApi: publishActor,
   },
@@ -134,6 +117,7 @@ export const publishFlowMachine = setup({
     resolving: {
       invoke: {
         src: "resolvePath",
+        input: { commandName: "publish", freshHint: true },
         onDone: {
           target: "runningPipeline",
           actions: assign({

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { applyConfigFieldCommit, buildConfigFields } from "./fields.ts";
+import { applyConfigFieldCommit, buildConfigFields } from "../src/commands/config/fields.ts";
 import type { Inventory } from "@agent-cv/core/src/types.ts";
 
 const baseInv: Inventory = {

@@ -1,11 +1,11 @@
 import { assign, fromPromise, setup } from "xstate";
-import { readInventory } from "@agent-cv/core/src/inventory/store.ts";
 import { readAuthToken, type AuthToken } from "@agent-cv/core/src/auth/index.ts";
 import { MarkdownRenderer } from "@agent-cv/core/src/output/markdown-renderer.ts";
 import { publishViaSync } from "@agent-cv/core/src/sync/publish.ts";
 import type { Inventory, Project } from "@agent-cv/core/src/types.ts";
 import type { AgentAdapter } from "@agent-cv/core/src/types.ts";
 import type { PipelineResult } from "../../components/Pipeline.tsx";
+import { resolveScanPathActor } from "../shared-actors.ts";
 
 export type GenerateFlowOptions = {
   output?: string;
@@ -40,20 +40,6 @@ type GenCtx = {
   adapter: AgentAdapter | null;
 };
 
-const resolvePathActor = fromPromise(async () => {
-  let inv;
-  try {
-    inv = await readInventory();
-  } catch {
-    throw new Error("No directory specified.\nUsage: agent-cv generate <directory>");
-  }
-  const paths = inv.scanPaths?.filter(Boolean) || [];
-  if (paths.length === 0) {
-    throw new Error("No directory specified and no previous scan paths found.\nUsage: agent-cv generate <directory>");
-  }
-  const pick = paths.length === 1 ? paths[0]! : paths[paths.length - 1]!;
-  return { directory: pick };
-});
 
 const renderActor = fromPromise(
   async ({
@@ -94,7 +80,7 @@ export const generateFlowMachine = setup({
     input: {} as GenerateFlowInput,
   },
   actors: {
-    resolvePath: resolvePathActor,
+    resolvePath: resolveScanPathActor,
     renderMarkdown: renderActor,
     publishInventory: publishActor,
   },
@@ -145,6 +131,7 @@ export const generateFlowMachine = setup({
     resolving: {
       invoke: {
         src: "resolvePath",
+        input: { commandName: "generate", freshHint: false },
         onDone: {
           target: "runningPipeline",
           actions: assign({
