@@ -68,7 +68,7 @@ export async function generateProfileInsights(
       ownsOriginal(p) || !p.hasGit ||
       (p.authorCommitCount > 0 && (p.commitCount === 0 || p.authorCommitCount / p.commitCount > 0.1 || p.authorCommitCount >= 10));
     const highlighted = yProjects
-      .filter((p) => isSignificantAuthor(p) && (p.tier === "primary" || p.isPublic))
+      .filter((p) => p.included !== false && isSignificantAuthor(p) && (p.tier === "primary" || p.isPublic))
       .sort((a, b) => (b.significance || 0) - (a.significance || 0));
     if (highlighted.length > 0) {
       // Deduplicate (same project can match both primary and isPublic)
