@@ -85,7 +85,7 @@ export interface ProjectAnalysis {
  * expected output schema changes. Cached analyses with a different
  * version will be re-analyzed.
  */
-export const PROMPT_VERSION = "3";
+export const PROMPT_VERSION = "4";
 
 export interface PrivacyAuditResult {
   secretsFound: number;

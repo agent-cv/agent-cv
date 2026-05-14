@@ -51,24 +51,61 @@ async function getReadme(
   dir: string,
   excluded: Set<string>
 ): Promise<string> {
-  const candidates = ["README.md", "README", "readme.md", "README.rst"];
+  // Order matters: many monorepos ship an almost-empty README.md and put the
+  // real description in CLAUDE.md or AGENTS.md (agent guidance files
+  // increasingly carry the canonical "what is this repo" intro). Try those
+  // before falling through to README. ARCHITECTURE.md and CONTRIBUTING.md
+  // are last-resort fallbacks when nothing else exists.
+  const candidates = [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "README.md",
+    "README",
+    "readme.md",
+    "README.rst",
+    "ARCHITECTURE.md",
+    "CONTRIBUTING.md",
+  ];
+  const pieces: string[] = [];
+  let budget = BUDGET.readme;
   for (const name of candidates) {
-    if (excluded.has(name)) continue;
+    if (excluded.has(name) || budget <= 0) continue;
     try {
       const content = await readFile(join(dir, name), "utf-8");
-      return truncate(content, BUDGET.readme);
+      // Skip near-empty files (single-line "TODO" or just a heading) so they
+      // don't crowd out the real description.
+      if (content.trim().length < 60) continue;
+      const slice = truncate(content, Math.min(budget, BUDGET.readme));
+      pieces.push(`### ${name}\n${slice}`);
+      budget -= slice.length;
+      // Stop once we have ~2 substantial sources; more dilutes the prompt.
+      if (pieces.length >= 2) break;
     } catch {
       continue;
     }
   }
-  return "";
+  return pieces.join("\n\n");
 }
 
 async function getDependencies(
   dir: string,
   excluded: Set<string>
 ): Promise<string> {
-  // Try package.json first
+  const rootResult = await readManifestAt(dir, excluded);
+  if (rootResult) return rootResult;
+
+  // Monorepo fallback: no manifest at the root, but the real packages live
+  // one or two levels down (apps/*, packages/*, services/*, ...). Walk a
+  // shallow set of conventional workspace dirs and aggregate the first few
+  // child manifests so the LLM sees the actual stack.
+  const aggregated = await readWorkspaceManifests(dir, excluded);
+  return aggregated;
+}
+
+/** Try to read a single manifest at `dir`. Returns "" when none found. */
+async function readManifestAt(dir: string, excluded: Set<string>): Promise<string> {
+  // Try package.json first — structured extract (name/desc/deps only) keeps
+  // the prompt focused on libraries instead of build metadata.
   if (!excluded.has("package.json")) {
     try {
       const pkg = await readFile(join(dir, "package.json"), "utf-8");
@@ -81,12 +118,10 @@ async function getDependencies(
       };
       return truncate(JSON.stringify(deps, null, 2), BUDGET.dependencies);
     } catch {
-      // fall through
+      /* fall through */
     }
   }
 
-  // Try other manifests (order: ecosystem-specific first so Solana/Solidity wins
-  // over bare Cargo/JS when both present).
   const manifests = [
     "Anchor.toml",
     "foundry.toml",
@@ -112,10 +147,46 @@ async function getDependencies(
       const content = await readFile(join(dir, name), "utf-8");
       return truncate(content, BUDGET.dependencies);
     } catch {
-      continue;
+      /* */
     }
   }
   return "";
+}
+
+const WORKSPACE_DIRS = ["apps", "packages", "services", "crates", "modules"];
+
+/**
+ * Walk shallow workspace dirs and collect 2-3 child manifests so monorepo
+ * projects without a root manifest still surface their actual stack.
+ */
+async function readWorkspaceManifests(rootDir: string, excluded: Set<string>): Promise<string> {
+  const pieces: string[] = [];
+  let budget = BUDGET.dependencies;
+
+  for (const ws of WORKSPACE_DIRS) {
+    if (budget <= 0) break;
+    let entries;
+    try {
+      entries = await readdir(join(rootDir, ws), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith(".")) continue;
+      if (budget <= 0) break;
+      const sub = join(rootDir, ws, e.name);
+      const childManifest = await readManifestAt(sub, excluded);
+      if (childManifest) {
+        const label = `# ${ws}/${e.name}`;
+        const slice = truncate(childManifest, Math.min(budget - label.length - 2, 600));
+        pieces.push(`${label}\n${slice}`);
+        budget -= slice.length + label.length + 2;
+        if (pieces.length >= 4) break;
+      }
+    }
+    if (pieces.length >= 4) break;
+  }
+  return pieces.join("\n\n");
 }
 
 async function getDirectoryTree(

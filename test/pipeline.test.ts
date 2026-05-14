@@ -1,6 +1,6 @@
 import { describe, test, expect, mock, beforeAll, afterAll } from "bun:test";
 import { analyzeProjects, type ProjectStatus } from "@agent-cv/core/src/pipeline.ts";
-import type { AgentAdapter, Project, ProjectAnalysis, ProjectContext, Inventory } from "@agent-cv/core/src/types.ts";
+import { PROMPT_VERSION, type AgentAdapter, type Project, type ProjectAnalysis, type ProjectContext, type Inventory } from "@agent-cv/core/src/types.ts";
 
 // These tests exercise the analyzer pipeline, not the LLM cache. Disable
 // the on-disk cache so retry/circuit-breaker tests aren't short-circuited
@@ -197,7 +197,7 @@ describe("analyzeProjects", () => {
         analyzedAt: new Date().toISOString(),
         analyzedBy: "test",
         analyzedAtCommit: "files:5:2024-06-01",
-        promptVersion: "3",
+        promptVersion: PROMPT_VERSION,
       },
     });
     const newProj = makeProject({ displayName: "new-proj" });
