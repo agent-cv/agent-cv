@@ -1,6 +1,6 @@
 {
   "name": "agent-cv",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Generate technical CVs from your local project directories using AI",
   "type": "module",
   "workspaces": [
@@ -10,7 +10,9 @@
     "agent-cv": "dist/cli.js"
   },
   "files": [
-    "dist/cli.js"
+    "dist/cli.js",
+    "dist/postgres.data",
+    "dist/postgres.wasm"
   ],
   "scripts": {
     "dev": "bun run src/cli.ts",

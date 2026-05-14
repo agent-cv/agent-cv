@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [0.2.0.1] - 2026-05-14 — PGlite assets in npm bundle
+
+Patch on top of 0.2.0.0. The minified npm bundle shipped only `dist/cli.js`
+but PGlite's loader needs `postgres.data` (5.2 MB) and `postgres.wasm`
+(7.7 MB) as siblings of the running script. Without them every DB-touching
+command (`publish`, `unpublish`, `generate` past analysis) crashed with:
+
+```
+ENOENT: no such file or directory, open '<install>/dist/postgres.data'
+```
+
+### Fixed
+
+- `scripts/build-npm.ts` now copies `postgres.data` and `postgres.wasm`
+  from `@electric-sql/pglite/dist` (transitive via bettersync) into
+  `dist/` after the JS bundle.
+- `package.json#files` includes both PGlite assets so they ship.
+
 ## [0.2.0.0] - 2026-05-13 — Reliability + Headless
 
 Focused on running the pipeline end-to-end on a real 581-project tree. Several
