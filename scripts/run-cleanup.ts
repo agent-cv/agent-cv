@@ -13,6 +13,7 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { readInventory, writeInventory } from "../packages/core/src/inventory/store.ts";
 import { extractRemoteUrl } from "../packages/core/src/discovery/git-metadata.ts";
+import { calculateSignificance, assignTiers } from "../packages/core/src/discovery/significance.ts";
 
 const GENERIC_DIR_NAMES = new Set([
   "package", "src", "lib", "dist", "build", "app", "main", "core",
@@ -116,6 +117,30 @@ async function main() {
       excluded++;
     }
   }
+
+  // Repair the 162-commit cluster bug: GitHub-cloud entries (path === "")
+  // got their authorCommitCount populated from `git rev-list` in CWD by the
+  // earlier recountAuthorCommitsBatch implementation. Reset them to 0 here
+  // so significance and highlights stop treating them as heavy contributions.
+  let repaired = 0;
+  for (const p of inv.projects) {
+    if (!p.path && p.authorCommitCount > 0) {
+      p.authorCommitCount = 0;
+      repaired++;
+    }
+  }
+  if (repaired > 0) console.error(`> repaired ${repaired} cloud entries with bogus authorCommitCount`);
+
+  // Recompute significance + tiers with the fixed scoring logic.
+  for (const p of inv.projects) {
+    p.significance = calculateSignificance(p);
+  }
+  const tierMap = assignTiers(inv.projects.filter((p) => p.included !== false));
+  for (const p of inv.projects) {
+    const tier = tierMap.get(p.id);
+    if (tier) p.tier = tier.tier;
+  }
+  console.error(`> recomputed significance + tiers`);
 
   console.error(`> renamed: ${renamed}`);
   console.error(`> excluded as trash dir: ${excluded}`);

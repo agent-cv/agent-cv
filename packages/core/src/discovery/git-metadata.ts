@@ -136,6 +136,9 @@ async function recountOne(
 ): Promise<{ authorCommits: number; matchedEmail: string }> {
   let authorCommits = 0;
   let matchedEmail = "";
+  // Defensive: empty path would have simpleGit fall back to CWD, polluting the
+  // result with whichever repo the caller happens to be in.
+  if (!dir) return { authorCommits, matchedEmail };
   try {
     const git = simpleGit(dir);
     for (const email of emails) {
@@ -159,7 +162,12 @@ export async function recountAuthorCommitsBatch(
 ): Promise<Map<string, { authorCommits: number; matchedEmail: string }>> {
   const results = new Map<string, { authorCommits: number; matchedEmail: string }>();
 
-  const gitProjects = projects.filter((p) => p.hasGit);
+  // Skip GitHub-cloud projects (path === "") — they have no local checkout.
+  // Previously `recountOne("")` fell back to `git rev-list` in CWD, returning
+  // the same author-commit count (from whichever repo the script ran in)
+  // for every cloud entry. That made dozens of unrelated cloud projects
+  // claim identical inflated commit counts.
+  const gitProjects = projects.filter((p) => p.hasGit && p.path && p.path !== "");
   for (let i = 0; i < gitProjects.length; i += PARALLEL_BATCH) {
     const batch = gitProjects.slice(i, i + PARALLEL_BATCH);
     const batchResults = await Promise.all(

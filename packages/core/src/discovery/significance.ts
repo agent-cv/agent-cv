@@ -9,13 +9,19 @@ export type ProjectTier = "primary" | "secondary" | "minor";
 export function calculateSignificance(p: Project): number {
   let score = 0;
 
-  // Author contribution weight
+  // Author contribution weight. Earlier cap (50 pts) made anyone with >100
+  // commits land at the same score, so deep multi-year codebases (english-learn
+  // at 641 commits, p2p-wallet-web at 681) were tied with short-lived 100-commit
+  // tools. Raise cap so sustained authorship moves the needle.
   const commits = p.authorCommitCount || 0;
-  score += Math.min(commits * 0.5, 50); // cap at 50 points from commits
+  score += Math.min(commits * 0.5, 300); // cap at 300 points from commits
 
-  /** Stars only count when the author actually contributed. A popular repo
-   * you cloned but never touched should not dominate the ranking. */
-  const didContribute = commits > 0 || p.isOwner || p.hasUncommittedChanges;
+  /** Stars only count when the author actually contributed code. A clone with
+   * accidental working-tree edits (`hasUncommittedChanges`) does NOT count —
+   * earlier logic let popular forks dominate via 500*10=5000 star points just
+   * because the user opened a file in an editor. Require real commits or
+   * verified ownership. */
+  const didContribute = commits > 0 || p.isOwner;
   if (didContribute) {
     score += Math.min(p.stars || 0, 500) * 10; // cap stars contribution
   }
@@ -62,9 +68,11 @@ export function calculateSignificance(p: Project): number {
   // Owner bonus — user created this project (first commit is theirs)
   if (p.isOwner) score += 10;
 
-  // Penalty for zero author commits in git repos (likely clone/fork)
-  // No penalty for owners or non-git projects
-  if (p.hasGit && p.authorCommitCount === 0 && !p.hasUncommittedChanges && !p.isOwner) {
+  // Penalty for zero author commits in git repos (likely clone/fork).
+  // Working-tree dirtiness is NOT a contribution signal — pre-existing logic
+  // exempted such clones from the penalty, which is how 7k-star OSS forks
+  // were dominating the highlights.
+  if (p.hasGit && p.authorCommitCount === 0 && !p.isOwner) {
     score *= 0.1;
   }
 
